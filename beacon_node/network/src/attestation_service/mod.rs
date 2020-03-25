@@ -32,7 +32,9 @@ const LAST_SEEN_VALIDATOR_TIMEOUT: u32 = 150; // 30 mins at a 12s slot time
 /// Note: The time is calculated as `time = milliseconds_per_slot / ADVANCE_SUBSCRIPTION_TIME`
 const ADVANCE_SUBSCRIBE_TIME: u32 = 3;
 
-#[derive(Debug, PartialEq)]
+const DEFAULT_EXPIRATION_TIMEOUT: u32 = 3; // 36s at 12s slot time
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum AttServiceMessage {
     /// Subscribe to the specified subnet id.
     Subscribe(SubnetId),
@@ -90,23 +92,27 @@ impl<T: BeaconChainTypes> AttestationService<T> {
 
         // calculate the random subnet duration from the spec constants
         let spec = &beacon_chain.spec;
+        let slot_duration = beacon_chain.slot_clock.slot_duration();
         let random_subnet_duration_millis = spec
             .epochs_per_random_subnet_subscription
             .saturating_mul(T::EthSpec::slots_per_epoch())
-            .saturating_mul(spec.milliseconds_per_slot);
+            .saturating_mul(slot_duration.as_millis() as u64);
 
         // Panics on overflow. Ensure LAST_SEEN_VALIDATOR_TIMEOUT is not too large.
-        let last_seen_val_timeout = Duration::from_millis(spec.milliseconds_per_slot)
+        let last_seen_val_timeout = slot_duration
             .checked_mul(LAST_SEEN_VALIDATOR_TIMEOUT)
             .expect("LAST_SEEN_VALIDATOR_TIMEOUT must not be ridiculously large");
+        let default_timeout = slot_duration.checked_mul(DEFAULT_EXPIRATION_TIMEOUT)
+            .expect("DEFAULT_EXPIRATION_TIMEOUT must not be ridiculoustly large");
+
         AttestationService {
             events: VecDeque::with_capacity(10),
             network_globals,
             beacon_chain,
             random_subnets: HashSetDelay::new(Duration::from_millis(random_subnet_duration_millis)),
-            discover_peers: HashSetDelay::default(),
-            subscriptions: HashSetDelay::default(),
-            unsubscriptions: HashSetDelay::default(),
+            discover_peers: HashSetDelay::new(default_timeout),
+            subscriptions: HashSetDelay::new(default_timeout),
+            unsubscriptions: HashSetDelay::new(default_timeout),
             known_validators: HashSetDelay::new(last_seen_val_timeout),
             log,
         }
@@ -156,8 +162,7 @@ impl<T: BeaconChainTypes> AttestationService<T> {
         &mut self,
         subnet: SubnetId,
         attestation: Box<Attestation<T::EthSpec>>,
-    ) {
-    }
+    ) {}
 
     /* Internal private functions */
 
@@ -176,7 +181,7 @@ impl<T: BeaconChainTypes> AttestationService<T> {
             .slot_clock
             .now()
             .ok_or_else(|| "Could not get the current slot")?;
-        let slot_duration = Duration::from_millis(self.beacon_chain.spec.milliseconds_per_slot);
+        let slot_duration = self.beacon_chain.slot_clock.slot_duration();
 
         // if there is enough time to perform a discovery lookup
         if subscription_slot >= current_slot.saturating_add(MIN_PEER_DISCOVERY_SLOT_LOOK_AHEAD) {
@@ -256,7 +261,7 @@ impl<T: BeaconChainTypes> AttestationService<T> {
             return Err("Could not subscribe to current slot, insufficient time");
         }
 
-        let slot_duration = Duration::from_millis(self.beacon_chain.spec.milliseconds_per_slot);
+        let slot_duration = self.beacon_chain.slot_clock.slot_duration();
         let advance_subscription_duration = slot_duration
             .checked_div(ADVANCE_SUBSCRIBE_TIME)
             .expect("ADVANCE_SUBSCRIPTION_TIME cannot be too large");
@@ -408,7 +413,7 @@ impl<T: BeaconChainTypes> AttestationService<T> {
         if let Some(expiry) = self.random_subnets.get(&subnet_id) {
             // we are subscribed via a random subnet, if this is to expire during the time we need
             // to be subscribed, just extend the expiry
-            let slot_duration = Duration::from_millis(self.beacon_chain.spec.milliseconds_per_slot);
+            let slot_duration = self.beacon_chain.slot_clock.slot_duration();
             let advance_subscription_duration = slot_duration
                 .checked_div(ADVANCE_SUBSCRIBE_TIME)
                 .expect("ADVANCE_SUBSCRIPTION_TIME cannot be too large");
@@ -529,7 +534,7 @@ impl<T: BeaconChainTypes> AttestationService<T> {
                         warn!(self.log, "Unable to determine duration to next slot");
                     })?;
                 let slot_duration =
-                    Duration::from_millis(self.beacon_chain.spec.milliseconds_per_slot);
+                    self.beacon_chain.slot_clock.slot_duration();
                 // Set the unsubscription timeout
                 let unsubscription_duration = duration_to_next_slot + slot_duration * 2;
                 self.unsubscriptions
@@ -599,3 +604,411 @@ impl<T: BeaconChainTypes> Stream for AttestationService<T> {
         Ok(Async::NotReady)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    extern crate rand;
+    extern crate tokio_timer;
+    extern crate futures;
+
+
+    use super::*;
+    use futures::{future, Stream};
+    use tokio::runtime::Runtime;
+    use tokio_timer::*;
+    use beacon_chain::builder::{BeaconChainBuilder, Witness};
+    use eth2_libp2p::{NetworkGlobals, PeerId};
+    use genesis::{generate_deterministic_keypairs, interop_genesis_state, recent_genesis_time};
+    use store::migrate::NullMigrator;
+    use store::MemoryStore;
+    use types::{EthSpec, MinimalEthSpec};
+    use bls::{Signature, Keypair};
+    use slog::{Logger, info};
+    use sloggers::{terminal::TerminalLoggerBuilder, types::Severity, Build};
+    use slot_clock::SystemTimeSlotClock;
+    use beacon_chain::eth1_chain::CachingEth1Backend;
+    use beacon_chain::events::NullEventHandler;
+    use sloggers::null::NullLoggerBuilder;
+    use tempfile::tempdir;
+    use matches::assert_matches;
+    use std::time::UNIX_EPOCH;
+
+    pub type TestBeaconChainType = Witness<
+        MemoryStore<MinimalEthSpec>,
+        NullMigrator,
+        SystemTimeSlotClock,
+        CachingEth1Backend<MinimalEthSpec, MemoryStore<MinimalEthSpec>>,
+        MinimalEthSpec,
+        NullEventHandler<MinimalEthSpec>,
+    >;
+
+    pub struct TestBeaconChain {
+        chain: BeaconChain<TestBeaconChainType>
+    }
+
+    impl TestBeaconChain {
+        pub fn new_with_system_clock(keypairs: Vec<Keypair>, slot_duration: Duration) -> Self {
+            let data_dir = tempdir().expect("should create temporary data_dir");
+            let spec = MinimalEthSpec::default_spec();
+            let genesis_time = recent_genesis_time(0);
+
+            let log = get_logger();
+            info!(log, "genesis time: {:?}", genesis_time);
+
+            let chain = BeaconChainBuilder::new(MinimalEthSpec)
+                .logger(log.clone())
+                .custom_spec(spec.clone())
+                .store(Arc::new(MemoryStore::open()))
+                .store_migrator(NullMigrator)
+                .data_dir(data_dir.path().to_path_buf())
+                .genesis_state(
+                    interop_genesis_state::<MinimalEthSpec>(&keypairs, genesis_time, &spec)
+                        .expect("should generate interop state"),
+                )
+                .expect("should build state using recent genesis")
+                .dummy_eth1_backend()
+                .expect("should build dummy backend")
+                .null_event_handler()
+                .slot_clock(
+                    SystemTimeSlotClock::new(
+                        Slot::new(0),
+                        Duration::from_secs(genesis_time),
+                        slot_duration))
+                .reduced_tree_fork_choice()
+                .expect("should add fork choice to builder")
+                .build()
+                .expect("should build");
+
+            Self {
+                chain
+            }
+        }
+    }
+
+    fn get_logger() -> Logger {
+        TerminalLoggerBuilder::new()
+            .level(Severity::Debug)
+            .build()
+            .expect("logger should build")
+    }
+
+    fn get_sig() -> Signature {
+        let keypair = Keypair::random();
+        Signature::new(&[42, 42], &keypair.sk)
+    }
+
+    // hardcode validator count to 1 and slot duration to 1 second for now
+    fn get_beacon_chain(slot_duration: u64) -> TestBeaconChain {
+        let key_pairs: Vec<Keypair> = generate_deterministic_keypairs(1);
+        TestBeaconChain::new_with_system_clock(key_pairs, Duration::from_secs(slot_duration))
+    }
+
+    fn get_attestation_service(slot_duration: u64) -> AttestationService<TestBeaconChainType> {
+        let peer_id = PeerId::random();
+        let network_globals: NetworkGlobals<MinimalEthSpec> =
+            NetworkGlobals::new(peer_id, 0, 0);
+        let beacon_chain = get_beacon_chain(slot_duration);
+        let log = get_logger();
+        AttestationService::new(Arc::new(beacon_chain.chain), Arc::new(network_globals), &log)
+    }
+
+    fn get_subscription(validator_index: u64, committee_index: u64, slot: Slot) -> ValidatorSubscription {
+        ValidatorSubscription::new(
+            validator_index,
+            committee_index,
+            slot,
+            get_sig())
+    }
+
+    fn get_subscriptions(validator_count: u64, subscription_slot: u64) -> Vec<ValidatorSubscription> {
+        let mut subscriptions: Vec<ValidatorSubscription> = Vec::new();
+        for validator_index in 0..validator_count {
+            subscriptions.push(ValidatorSubscription::new(
+                validator_index,
+                validator_index,
+                Slot::new(subscription_slot),
+                get_sig()));
+        }
+        subscriptions
+    }
+
+    fn run_one<F>(f: F) -> Result<F::Item, F::Error>
+        where
+            F: IntoFuture,
+            F::Future: Send + 'static,
+            F::Item: Send + 'static,
+            F::Error: Send + 'static,
+    {
+        let mut runtime = Runtime::new().expect("Unable to create a runtime");
+        runtime.block_on_all(f.into_future())
+    }
+
+    fn run_one_with_delay<F>(f: F, delay: u64) -> Result<F::Item, F::Error>
+        where
+            F: IntoFuture,
+            F::Future: Send + 'static,
+            F::Item: Send + 'static,
+            F::Error: Send + 'static,
+    {
+        let mut runtime = Runtime::new().expect("Unable to create a runtime");
+        runtime.block_on(
+            Delay::new(Instant::now() + Duration::from_millis(delay))).unwrap();
+        runtime.block_on_all(f.into_future())
+    }
+
+    fn is_subscription_event(_event: AttServiceMessage, subnet_id: SubnetId) -> bool {
+        _event.eq(&AttServiceMessage::Subscribe(subnet_id)) ||
+            _event.eq(&AttServiceMessage::EnrAdd(subnet_id)) ||
+            _event.eq(&AttServiceMessage::Unsubscribe(subnet_id)) ||
+            _event.eq(&AttServiceMessage::DiscoverPeers(subnet_id))
+    }
+
+    #[test]
+    fn test_subscribe_current_slot() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_subnet_id = SubnetId::new(committee_index);
+        let subscription_slot = 0;
+
+        // other test config
+        let slot_duration_secs = 5;
+        let initial_delay_millis = 500;
+
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service(slot_duration_secs);
+        let current_slot = attestation_service.beacon_chain.slot_clock.now().expect("Could not get current slot");
+        let subscriptions = vec![get_subscription(validator_index, committee_index, current_slot + Slot::new(subscription_slot)), ];
+
+        // submit the subscriptions
+        attestation_service.validator_subscriptions(subscriptions).unwrap();
+
+        let test_closure = future::poll_fn( move || -> Poll<(Vec<AttServiceMessage>, Vec<AttServiceMessage>), ()>{
+            let mut subscription_events = Vec::new();
+            let mut random_subnet_events = Vec::new();
+
+            // poll for the produced events
+            while let Ok(Async::Ready(Some(_event))) = attestation_service.poll()
+            {
+                if is_subscription_event(_event, subscription_subnet_id){
+                    subscription_events.push(_event);
+                } else {
+                    random_subnet_events.push(_event)
+                }
+                info!(attestation_service.log, "event: {:?}", _event);
+            };
+            Ok(Async::Ready((subscription_events, random_subnet_events)))
+        });
+
+        // run the test after an initial delay and collect produced events
+        let actual = run_one_with_delay(test_closure, initial_delay_millis).unwrap();
+
+        // expected events
+        let expected = vec![];
+
+        // assert the submitted subscriptions match exactly, and random subnet subscriptions match message type and count
+        assert_eq!(actual.0, expected);
+        assert_matches!(actual.1[..], [AttServiceMessage::Subscribe(_any1), AttServiceMessage::EnrAdd(_any2)]);
+    }
+
+    #[test]
+    fn test_subscribe_one_slot_ahead() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_subnet_id = SubnetId::new(committee_index);
+        let subscription_slot = 1;
+
+        // other test config
+        let slot_duration_secs = 5;
+        let initial_delay_millis = 500;
+
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service(slot_duration_secs);
+        let current_slot = attestation_service.beacon_chain.slot_clock.now().expect("Could not get current slot");
+        let subscriptions = vec![get_subscription(validator_index, committee_index, current_slot + Slot::new(subscription_slot)), ];
+
+        // submit the subscriptions
+        attestation_service.validator_subscriptions(subscriptions).unwrap();
+
+        let test_closure = future::poll_fn( move || -> Poll<(Vec<AttServiceMessage>, Vec<AttServiceMessage>), ()>{
+            let mut subscription_events = Vec::new();
+            let mut random_subnet_events = Vec::new();
+
+            // poll for the produced events
+            while let Ok(Async::Ready(Some(_event))) = attestation_service.poll()
+            {
+                if is_subscription_event(_event, subscription_subnet_id){
+                    subscription_events.push(_event);
+                } else {
+                    random_subnet_events.push(_event)
+                }
+                info!(attestation_service.log, "event: {:?}", _event);
+            };
+            Ok(Async::Ready((subscription_events, random_subnet_events)))
+        });
+
+        // run the test after an initial delay and collect produced events
+        let actual = run_one_with_delay(test_closure, initial_delay_millis).unwrap();
+
+        // expected events
+        let expected = vec![AttServiceMessage::DiscoverPeers(subscription_subnet_id), AttServiceMessage::Subscribe(subscription_subnet_id)];
+
+        // assert the submitted subscriptions match exactly, and random subnet subscriptions match message type and count
+        assert_eq!(actual.0, expected);
+        assert_matches!(actual.1[..], [AttServiceMessage::Subscribe(_any1), AttServiceMessage::EnrAdd(_any2)]);
+    }
+
+    #[test]
+    fn test_subscribe_two_slots_ahead() {
+        // subscription config
+        let validator_index = 2;
+        let committee_index = 2;
+        let subscription_subnet_id = SubnetId::new(committee_index);
+        let subscription_slot = 2;
+
+        // other test config
+        let slot_duration_secs = 5;
+        let initial_delay_millis = 500;
+
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service(slot_duration_secs);
+        let current_slot = attestation_service.beacon_chain.slot_clock.now().expect("Could not get current slot");
+        let subscriptions = vec![get_subscription(validator_index, committee_index, current_slot + Slot::new(subscription_slot)), ];
+
+        // submit the subscriptions
+        attestation_service.validator_subscriptions(subscriptions).unwrap();
+
+        let test_closure = future::poll_fn( move || -> Poll<(Vec<AttServiceMessage>, Vec<AttServiceMessage>), ()>{
+            let mut subscription_events = Vec::new();
+            let mut random_subnet_events = Vec::new();
+
+            // poll for the produced events
+            while let Ok(Async::Ready(Some(_event))) = attestation_service.poll()
+            {
+                if is_subscription_event(_event, subscription_subnet_id){
+                    subscription_events.push(_event);
+                } else {
+                    random_subnet_events.push(_event)
+                }
+                info!(attestation_service.log, "event: {:?}", _event);
+            };
+            Ok(Async::Ready((subscription_events, random_subnet_events)))
+        });
+
+        // run the test after an initial delay and collect produced events
+        let actual = run_one_with_delay(test_closure, initial_delay_millis).unwrap();
+
+        // expected events
+        let expected = vec![AttServiceMessage::DiscoverPeers(subscription_subnet_id)];
+
+        // assert the submitted subscriptions match exactly, and random subnet subscriptions match message type and count
+        assert_eq!(actual.0, expected);
+        assert_matches!(actual.1[..], [AttServiceMessage::Subscribe(_any1), AttServiceMessage::EnrAdd(_any2)]);
+    }
+
+    #[test]
+    fn test_subscribe_two_slots_ahead_wait_one_slot() {
+        // subscription config
+        let validator_index = 2;
+        let committee_index = 2;
+        let subscription_subnet_id = SubnetId::new(committee_index);
+        let subscription_slot = 2;
+
+        // other test config
+        let slot_duration_secs = 5;
+        let initial_delay_millis = 8000;
+
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service(slot_duration_secs);
+        let current_slot = attestation_service.beacon_chain.slot_clock.now().expect("Could not get current slot");
+        let subscriptions = vec![get_subscription(validator_index, committee_index, current_slot + Slot::new(subscription_slot)), ];
+
+        // submit the subscriptions
+        attestation_service.validator_subscriptions(subscriptions).unwrap();
+
+        let test_closure = future::poll_fn( move || -> Poll<(Vec<AttServiceMessage>, Vec<AttServiceMessage>), ()>{
+            let mut subscription_events = Vec::new();
+            let mut random_subnet_events = Vec::new();
+
+            // poll for the produced events
+            while let Ok(Async::Ready(Some(_event))) = attestation_service.poll()
+            {
+                if is_subscription_event(_event, subscription_subnet_id){
+                    subscription_events.push(_event);
+                } else {
+                    random_subnet_events.push(_event)
+                }
+                info!(attestation_service.log, "event: {:?}", _event);
+            };
+            Ok(Async::Ready((subscription_events, random_subnet_events)))
+        });
+
+        // run the test after an initial delay and collect produced events
+        let actual = run_one_with_delay(test_closure, initial_delay_millis).unwrap();
+
+        // expected events
+        let expected = vec![AttServiceMessage::DiscoverPeers(subscription_subnet_id), AttServiceMessage::Subscribe(subscription_subnet_id)];
+
+        // assert the submitted subscriptions match exactly, and random subnet subscriptions match message type and count
+        assert_eq!(actual.0, expected);
+        assert_matches!(actual.1[..], [AttServiceMessage::Subscribe(_any1), AttServiceMessage::EnrAdd(_any2)]);
+    }
+
+    #[test]
+    fn test_subscribe_wait_for_unsubscribe() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_subnet_id = SubnetId::new(committee_index);
+        let subscription_slot = 2;
+
+        // other test config
+        let slot_duration_secs = 1;
+        let initial_delay_millis = 5000;
+
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service(slot_duration_secs);
+        let current_slot = attestation_service.beacon_chain.slot_clock.now().expect("Could not get current slot");
+        let subscriptions = vec![get_subscription(validator_index, committee_index, current_slot + Slot::new(subscription_slot)), ];
+
+        // submit the subscriptions
+        attestation_service.validator_subscriptions(subscriptions).unwrap();
+
+        let test_closure = future::poll_fn( move || -> Poll<(Vec<AttServiceMessage>, Vec<AttServiceMessage>), ()>{
+            let mut subscription_events = Vec::new();
+            let mut random_subnet_events = Vec::new();
+
+            // poll for the produced events
+            while let Ok(Async::Ready(Some(_event))) = attestation_service.poll()
+            {
+                if is_subscription_event(_event, subscription_subnet_id){
+                    subscription_events.push(_event);
+                } else {
+                    random_subnet_events.push(_event)
+                }
+                info!(attestation_service.log, "event: {:?}", _event);
+            };
+            Ok(Async::Ready((subscription_events, random_subnet_events)))
+        });
+
+        // run the test after an initial delay and collect produced events
+        let actual = run_one_with_delay(test_closure, initial_delay_millis).unwrap();
+
+        // expected events
+        let expected = vec![AttServiceMessage::DiscoverPeers(subscription_subnet_id), AttServiceMessage::Subscribe(subscription_subnet_id), AttServiceMessage::Unsubscribe(subscription_subnet_id)];
+
+        // assert the submitted subscriptions match exactly, and random subnet subscriptions match message type and count
+        assert_eq!(actual.0, expected);
+        assert_matches!(actual.1[..], [AttServiceMessage::Subscribe(_any1), AttServiceMessage::EnrAdd(_any2)]);
+    }
+}
+
+
+
+

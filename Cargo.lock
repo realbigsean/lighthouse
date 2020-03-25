@@ -2818,6 +2818,7 @@ name = "network"
 version = "0.2.0"
 dependencies = [
  "beacon_chain",
+ "bls",
  "error-chain",
  "eth2-libp2p",
  "eth2_ssz",
@@ -2826,6 +2827,7 @@ dependencies = [
  "genesis",
  "hashmap_delay",
  "hex 0.3.2",
+ "matches",
  "parking_lot 0.9.0",
  "rand 0.7.3",
  "rest_types",
@@ -2836,7 +2838,9 @@ dependencies = [
  "smallvec 1.2.0",
  "store",
  "tempdir",
+ "tempfile",
  "tokio",
+ "tokio-timer 0.2.13",
  "tree_hash",
  "types",
 ]

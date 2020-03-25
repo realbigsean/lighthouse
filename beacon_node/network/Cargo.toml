@@ -30,3 +30,7 @@ smallvec = "1.0.0"
 rand = "0.7.2"
 fnv = "1.0.6"
 rlp = "0.4.3"
+bls = { path = "../../eth2/utils/bls" }
+tempfile = "3.1.0"
+tokio-timer = "0.2.12"
+matches = "0.1.8"
