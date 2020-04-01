@@ -1161,4 +1161,65 @@ mod tests {
         );
         assert!(test_result.load(Relaxed))
     }
+
+    #[test]
+    fn subscribe_all_random_subnets_plus_one() {
+        // subscribe 10 slots ahead so we do not produce any exact subnet messages
+        let subscription_slot = 10;
+        // the 65th subscription should result in no more messages than the previous scenario
+        let subscription_count = 65;
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service();
+        let current_slot = attestation_service
+            .beacon_chain
+            .slot_clock
+            .now()
+            .expect("Could not get current slot");
+
+        let subscriptions =
+            _get_subscriptions(subscription_count, current_slot + subscription_slot);
+
+        // submit the subscriptions
+        attestation_service
+            .validator_subscriptions(subscriptions)
+            .unwrap();
+
+        let test_result = Arc::new(AtomicBool::new(false));
+        let thread_result = test_result.clone();
+        tokio::run(
+            get_events(attestation_service, 192, 3)
+                .map(move |events| {
+                    let mut discover_peer_count = 0;
+                    let mut subscribe_count = 0;
+                    let mut enr_add_count = 0;
+                    let mut unexpected_msg_count = 0;
+
+                    for event in events {
+                        match event {
+                            AttServiceMessage::DiscoverPeers(_any_subnet) => {
+                                discover_peer_count = discover_peer_count + 1
+                            }
+                            AttServiceMessage::Subscribe(_any_subnet) => {
+                                subscribe_count = subscribe_count + 1
+                            }
+                            AttServiceMessage::EnrAdd(_any_subnet) => {
+                                enr_add_count = enr_add_count + 1
+                            }
+                            _ => unexpected_msg_count = unexpected_msg_count + 1,
+                        }
+                    }
+
+                    assert_eq!(discover_peer_count, 64);
+                    assert_eq!(subscribe_count, 64);
+                    assert_eq!(enr_add_count, 64);
+                    assert_eq!(unexpected_msg_count, 0);
+                    // test completed successfully
+                    thread_result.store(true, Relaxed);
+                })
+                // this doesn't need to be here, but helps with debugging
+                .map_err(|_| panic!("Did not receive desired events in the given time frame")),
+        );
+        assert!(test_result.load(Relaxed))
+    }
 }
