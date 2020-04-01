@@ -32,7 +32,7 @@ const ADVANCE_SUBSCRIBE_TIME: u32 = 3;
 /// The default number of slots before items in hash delay sets used by this class should expire.
 const DEFAULT_EXPIRATION_TIMEOUT: u32 = 3; // 36s at 12s slot time
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AttServiceMessage {
     /// Subscribe to the specified subnet id.
     Subscribe(SubnetId),
@@ -108,13 +108,13 @@ impl<T: BeaconChainTypes> AttestationService<T> {
             .saturating_mul(T::EthSpec::slots_per_epoch())
             .saturating_mul(slot_duration.as_millis() as u64);
 
-        // Panics on overflow. Ensure LAST_SEEN_VALIDATOR_TIMEOUT is not too large.
+        // Panics on overflow. Ensure LAST_SEEN_VALIDATOR_TIMEOUT and DEFAULT_EXPIRATION_TIMEOUT are not too large.
         let last_seen_val_timeout = slot_duration
             .checked_mul(LAST_SEEN_VALIDATOR_TIMEOUT)
             .expect("LAST_SEEN_VALIDATOR_TIMEOUT must not be ridiculously large");
         let default_timeout = slot_duration
             .checked_mul(DEFAULT_EXPIRATION_TIMEOUT)
-            .expect("DEFAULT_EXPIRATION_TIMEOUT must not be ridiculoustly large");
+            .expect("DEFAULT_EXPIRATION_TIMEOUT must not be ridiculously large");
 
         AttestationService {
             events: VecDeque::with_capacity(10),
@@ -311,13 +311,13 @@ impl<T: BeaconChainTypes> AttestationService<T> {
                         .saturating_sub(current_slot)
                         .saturating_sub(1u64);
 
-                    duration_to_next_slot
-                        .checked_add(slot_duration)
-                        .ok_or_else(|| "Overflow in adding slot_duration attestation time")?
+                    slot_duration
                         .checked_mul(slots_until_subscribe.as_u64() as u32)
                         .ok_or_else(|| {
                             "Overflow in multiplying number of slots in attestation time"
                         })?
+                        .checked_add(duration_to_next_slot)
+                        .ok_or_else(|| "Overflow in adding duration_to_next_slot attestation time")?
                         .checked_sub(advance_subscription_duration)
                         .unwrap_or_else(|| Duration::from_secs(0))
                 };
@@ -644,5 +644,521 @@ impl<T: BeaconChainTypes> Stream for AttestationService<T> {
         }
 
         Ok(Async::NotReady)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use beacon_chain::builder::{BeaconChainBuilder, Witness};
+    use beacon_chain::eth1_chain::CachingEth1Backend;
+    use beacon_chain::events::NullEventHandler;
+    use eth2_libp2p::{NetworkGlobals, PeerId};
+    use futures::Stream;
+    use genesis::{generate_deterministic_keypairs, interop_genesis_state, recent_genesis_time};
+    use lazy_static::lazy_static;
+    use matches::assert_matches;
+    use slog::Logger;
+    use sloggers::{null::NullLoggerBuilder, Build};
+    use slot_clock::{SlotClock, SystemTimeSlotClock};
+    use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+    use store::migrate::NullMigrator;
+    use store::MemoryStore;
+    use tempfile::tempdir;
+    use tokio::prelude::*;
+    use types::{CommitteeIndex, EthSpec, MinimalEthSpec};
+
+    const SLOT_DURATION_MILLIS: u64 = 200;
+
+    type TestBeaconChainType = Witness<
+        MemoryStore<MinimalEthSpec>,
+        NullMigrator,
+        SystemTimeSlotClock,
+        CachingEth1Backend<MinimalEthSpec, MemoryStore<MinimalEthSpec>>,
+        MinimalEthSpec,
+        NullEventHandler<MinimalEthSpec>,
+    >;
+
+    pub struct TestBeaconChain {
+        chain: Arc<BeaconChain<TestBeaconChainType>>,
+    }
+
+    impl TestBeaconChain {
+        pub fn new_with_system_clock() -> Self {
+            let data_dir = tempdir().expect("should create temporary data_dir");
+            let spec = MinimalEthSpec::default_spec();
+
+            let keypairs = generate_deterministic_keypairs(1);
+
+            let log = get_logger();
+            let chain = Arc::new(
+                BeaconChainBuilder::new(MinimalEthSpec)
+                    .logger(log.clone())
+                    .custom_spec(spec.clone())
+                    .store(Arc::new(MemoryStore::open()))
+                    .store_migrator(NullMigrator)
+                    .data_dir(data_dir.path().to_path_buf())
+                    .genesis_state(
+                        interop_genesis_state::<MinimalEthSpec>(&keypairs, 0, &spec)
+                            .expect("should generate interop state"),
+                    )
+                    .expect("should build state using recent genesis")
+                    .dummy_eth1_backend()
+                    .expect("should build dummy backend")
+                    .null_event_handler()
+                    .slot_clock(SystemTimeSlotClock::new(
+                        Slot::new(0),
+                        Duration::from_secs(recent_genesis_time(0)),
+                        Duration::from_millis(SLOT_DURATION_MILLIS),
+                    ))
+                    .reduced_tree_fork_choice()
+                    .expect("should add fork choice to builder")
+                    .build()
+                    .expect("should build"),
+            );
+            Self { chain }
+        }
+    }
+
+    fn get_logger() -> Logger {
+        NullLoggerBuilder.build().expect("logger should build")
+    }
+
+    lazy_static! {
+        static ref CHAIN: TestBeaconChain = { TestBeaconChain::new_with_system_clock() };
+    }
+
+    fn get_attestation_service() -> AttestationService<TestBeaconChainType> {
+        let peer_id = PeerId::random();
+        let network_globals: NetworkGlobals<MinimalEthSpec> = NetworkGlobals::new(peer_id, 0, 0);
+        let beacon_chain = CHAIN.chain.clone();
+
+        let log = get_logger();
+        AttestationService::new(beacon_chain, Arc::new(network_globals), &log)
+    }
+
+    fn get_subscription(
+        validator_index: u64,
+        attestation_committee_index: CommitteeIndex,
+        slot: Slot,
+    ) -> ValidatorSubscription {
+        let is_aggregator = true;
+        ValidatorSubscription {
+            validator_index,
+            attestation_committee_index,
+            slot,
+            is_aggregator,
+        }
+    }
+
+    fn _get_subscriptions(validator_count: u64, slot: Slot) -> Vec<ValidatorSubscription> {
+        let mut subscriptions: Vec<ValidatorSubscription> = Vec::new();
+        for validator_index in 0..validator_count {
+            let is_aggregator = true;
+            subscriptions.push(ValidatorSubscription {
+                validator_index,
+                attestation_committee_index: validator_index,
+                slot,
+                is_aggregator,
+            });
+        }
+        subscriptions
+    }
+
+    // gets a number of events from the subscription service, or returns none if it times out after a number
+    // of slots
+    fn get_events<S: Stream<Item = AttServiceMessage, Error = ()>>(
+        stream: S,
+        no_events: u64,
+        no_slots_before_timeout: u32,
+    ) -> impl Future<Item = Vec<AttServiceMessage>, Error = ()> {
+        stream
+            .take(no_events)
+            .collect()
+            .timeout(Duration::from_millis(SLOT_DURATION_MILLIS) * no_slots_before_timeout)
+            .map_err(|_| ())
+    }
+
+    #[test]
+    fn subscribe_current_slot() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_slot = 0;
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service();
+        let current_slot = attestation_service
+            .beacon_chain
+            .slot_clock
+            .now()
+            .expect("Could not get current slot");
+
+        let subscriptions = vec![get_subscription(
+            validator_index,
+            committee_index,
+            current_slot + Slot::new(subscription_slot),
+        )];
+
+        // submit the subscriptions
+        attestation_service
+            .validator_subscriptions(subscriptions)
+            .unwrap();
+
+        // not enough time for peer discovery, just subscribe
+        let expected = vec![AttServiceMessage::Subscribe(SubnetId::new(validator_index))];
+
+        let test_result = Arc::new(AtomicBool::new(false));
+        let thread_result = test_result.clone();
+        tokio::run(
+            get_events(attestation_service, 4, 1)
+                .map(move |events| {
+                    assert_matches!(
+                        events[..3],
+                        [
+                            AttServiceMessage::DiscoverPeers(_any2),
+                            AttServiceMessage::Subscribe(_any1),
+                            AttServiceMessage::EnrAdd(_any3)
+                        ]
+                    );
+                    assert_eq!(expected[..], events[3..]);
+                    // test completed successfully
+                    thread_result.store(true, Relaxed);
+                })
+                // this doesn't need to be here, but helps with debugging
+                .map_err(|_| panic!("Did not receive desired events in the given time frame")),
+        );
+        assert!(test_result.load(Relaxed))
+    }
+
+    #[test]
+    fn subscribe_current_slot_wait_for_unsubscribe() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_slot = 0;
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service();
+        let current_slot = attestation_service
+            .beacon_chain
+            .slot_clock
+            .now()
+            .expect("Could not get current slot");
+
+        let subscriptions = vec![get_subscription(
+            validator_index,
+            committee_index,
+            current_slot + Slot::new(subscription_slot),
+        )];
+
+        // submit the subscriptions
+        attestation_service
+            .validator_subscriptions(subscriptions)
+            .unwrap();
+
+        // not enough time for peer discovery, just subscribe, unsubscribe
+        let expected = vec![
+            AttServiceMessage::Subscribe(SubnetId::new(validator_index)),
+            AttServiceMessage::Unsubscribe(SubnetId::new(validator_index)),
+        ];
+
+        let test_result = Arc::new(AtomicBool::new(false));
+        let thread_result = test_result.clone();
+        tokio::run(
+            get_events(attestation_service, 5, 2)
+                .map(move |events| {
+                    assert_matches!(
+                        events[..3],
+                        [
+                            AttServiceMessage::DiscoverPeers(_any2),
+                            AttServiceMessage::Subscribe(_any1),
+                            AttServiceMessage::EnrAdd(_any3)
+                        ]
+                    );
+                    assert_eq!(expected[..], events[3..]);
+                    // test completed successfully
+                    thread_result.store(true, Relaxed);
+                })
+                // this doesn't need to be here, but helps with debugging
+                .map_err(|_| panic!("Did not receive desired events in the given time frame")),
+        );
+        assert!(test_result.load(Relaxed))
+    }
+
+    #[test]
+    fn subscribe_five_slots_ahead() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_slot = 5;
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service();
+        let current_slot = attestation_service
+            .beacon_chain
+            .slot_clock
+            .now()
+            .expect("Could not get current slot");
+
+        let subscriptions = vec![get_subscription(
+            validator_index,
+            committee_index,
+            current_slot + Slot::new(subscription_slot),
+        )];
+
+        // submit the subscriptions
+        attestation_service
+            .validator_subscriptions(subscriptions)
+            .unwrap();
+
+        // just discover peers, don't subscribe yet
+        let expected = vec![AttServiceMessage::DiscoverPeers(SubnetId::new(
+            validator_index,
+        ))];
+
+        let test_result = Arc::new(AtomicBool::new(false));
+        let thread_result = test_result.clone();
+        tokio::run(
+            get_events(attestation_service, 4, 1)
+                .map(move |events| {
+                    assert_matches!(
+                        events[..3],
+                        [
+                            AttServiceMessage::DiscoverPeers(_any1),
+                            AttServiceMessage::Subscribe(_any2),
+                            AttServiceMessage::EnrAdd(_any3)
+                        ]
+                    );
+                    assert_eq!(expected[..], events[3..]);
+                    // test completed successfully
+                    thread_result.store(true, Relaxed);
+                })
+                // this doesn't need to be here, but helps with debugging
+                .map_err(|_| panic!("Did not receive desired events in the given time frame")),
+        );
+        assert!(test_result.load(Relaxed))
+    }
+
+    #[test]
+    fn subscribe_five_slots_ahead_wait_five_slots() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_slot = 5;
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service();
+        let current_slot = attestation_service
+            .beacon_chain
+            .slot_clock
+            .now()
+            .expect("Could not get current slot");
+
+        let subscriptions = vec![get_subscription(
+            validator_index,
+            committee_index,
+            current_slot + Slot::new(subscription_slot),
+        )];
+
+        // submit the subscriptions
+        attestation_service
+            .validator_subscriptions(subscriptions)
+            .unwrap();
+
+        // we should discover peers, wait, then subscribe
+        let expected = vec![
+            AttServiceMessage::DiscoverPeers(SubnetId::new(validator_index)),
+            AttServiceMessage::Subscribe(SubnetId::new(validator_index)),
+        ];
+
+        let test_result = Arc::new(AtomicBool::new(false));
+        let thread_result = test_result.clone();
+        tokio::run(
+            get_events(attestation_service, 5, 5)
+                .map(move |events| {
+                    //dbg!(&events);
+                    assert_matches!(
+                        events[..3],
+                        [
+                            AttServiceMessage::DiscoverPeers(_any1),
+                            AttServiceMessage::Subscribe(_any2),
+                            AttServiceMessage::EnrAdd(_any3)
+                        ]
+                    );
+                    assert_eq!(expected[..], events[3..]);
+                    // test completed successfully
+                    thread_result.store(true, Relaxed);
+                })
+                // this doesn't need to be here, but helps with debugging
+                .map_err(|_| panic!("Did not receive desired events in the given time frame")),
+        );
+        assert!(test_result.load(Relaxed))
+    }
+
+    #[test]
+    fn subscribe_ten_slots_ahead() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_slot = 10;
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service();
+        let current_slot = attestation_service
+            .beacon_chain
+            .slot_clock
+            .now()
+            .expect("Could not get current slot");
+
+        let subscriptions = vec![get_subscription(
+            validator_index,
+            committee_index,
+            current_slot + Slot::new(subscription_slot),
+        )];
+
+        // submit the subscriptions
+        attestation_service
+            .validator_subscriptions(subscriptions)
+            .unwrap();
+
+        // ten slots ahead is before our target peer discover time, so expect no messages
+        let expected: Vec<AttServiceMessage> = vec![];
+
+        let test_result = Arc::new(AtomicBool::new(false));
+        let thread_result = test_result.clone();
+        tokio::run(
+            get_events(attestation_service, 3, 1)
+                .map(move |events| {
+                    assert_matches!(
+                        events[..3],
+                        [
+                            AttServiceMessage::DiscoverPeers(_any1),
+                            AttServiceMessage::Subscribe(_any2),
+                            AttServiceMessage::EnrAdd(_any3)
+                        ]
+                    );
+                    assert_eq!(expected[..], events[3..]);
+                    // test completed successfully
+                    thread_result.store(true, Relaxed);
+                })
+                // this doesn't need to be here, but helps with debugging
+                .map_err(|_| panic!("Did not receive desired events in the given time frame")),
+        );
+        assert!(test_result.load(Relaxed))
+    }
+
+    #[test]
+    fn subscribe_ten_slots_ahead_wait_five_slots() {
+        // subscription config
+        let validator_index = 1;
+        let committee_index = 1;
+        let subscription_slot = 10;
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service();
+        let current_slot = attestation_service
+            .beacon_chain
+            .slot_clock
+            .now()
+            .expect("Could not get current slot");
+
+        let subscriptions = vec![get_subscription(
+            validator_index,
+            committee_index,
+            current_slot + Slot::new(subscription_slot),
+        )];
+
+        // submit the subscriptions
+        attestation_service
+            .validator_subscriptions(subscriptions)
+            .unwrap();
+
+        // expect discover peers because we will enter TARGET_PEER_DISCOVERY_SLOT_LOOK_AHEAD range
+        let expected: Vec<AttServiceMessage> = vec![AttServiceMessage::DiscoverPeers(
+            SubnetId::new(validator_index),
+        )];
+
+        let test_result = Arc::new(AtomicBool::new(false));
+        let thread_result = test_result.clone();
+        tokio::run(
+            get_events(attestation_service, 4, 5)
+                .map(move |events| {
+                    assert_matches!(
+                        events[..3],
+                        [
+                            AttServiceMessage::DiscoverPeers(_any1),
+                            AttServiceMessage::Subscribe(_any2),
+                            AttServiceMessage::EnrAdd(_any3)
+                        ]
+                    );
+                    assert_eq!(expected[..], events[3..]);
+                    // test completed successfully
+                    thread_result.store(true, Relaxed);
+                })
+                // this doesn't need to be here, but helps with debugging
+                .map_err(|_| panic!("Did not receive desired events in the given time frame")),
+        );
+        assert!(test_result.load(Relaxed))
+    }
+
+    #[test]
+    fn subscribe_all_random_subnets() {
+        // subscribe 10 slots ahead so we do not produce any exact subnet messages
+        let subscription_slot = 10;
+        let subscription_count = 64;
+
+        // create the attestation service and subscriptions
+        let mut attestation_service = get_attestation_service();
+        let current_slot = attestation_service
+            .beacon_chain
+            .slot_clock
+            .now()
+            .expect("Could not get current slot");
+
+        let subscriptions =
+            _get_subscriptions(subscription_count, current_slot + subscription_slot);
+
+        // submit the subscriptions
+        attestation_service
+            .validator_subscriptions(subscriptions)
+            .unwrap();
+
+        let test_result = Arc::new(AtomicBool::new(false));
+        let thread_result = test_result.clone();
+        tokio::run(
+            get_events(attestation_service, 192, 3)
+                .map(move |events| {
+                    let mut discover_peer_count = 0;
+                    let mut subscribe_count = 0;
+                    let mut enr_add_count = 0;
+                    let mut unexpected_msg_count = 0;
+
+                    for event in events {
+                        match event {
+                            AttServiceMessage::DiscoverPeers(_any_subnet) => {
+                                discover_peer_count = discover_peer_count + 1
+                            }
+                            AttServiceMessage::Subscribe(_any_subnet) => {
+                                subscribe_count = subscribe_count + 1
+                            }
+                            AttServiceMessage::EnrAdd(_any_subnet) => {
+                                enr_add_count = enr_add_count + 1
+                            }
+                            _ => unexpected_msg_count = unexpected_msg_count + 1,
+                        }
+                    }
+
+                    assert_eq!(discover_peer_count, 64);
+                    assert_eq!(subscribe_count, 64);
+                    assert_eq!(enr_add_count, 64);
+                    assert_eq!(unexpected_msg_count, 0);
+                    // test completed successfully
+                    thread_result.store(true, Relaxed);
+                })
+                // this doesn't need to be here, but helps with debugging
+                .map_err(|_| panic!("Did not receive desired events in the given time frame")),
+        );
+        assert!(test_result.load(Relaxed))
     }
 }

@@ -2799,6 +2799,8 @@ dependencies = [
  "genesis",
  "hashmap_delay",
  "hex 0.3.2",
+ "lazy_static",
+ "matches",
  "parking_lot 0.9.0",
  "rand 0.7.3",
  "rest_types",
@@ -2809,7 +2811,9 @@ dependencies = [
  "smallvec 1.2.0",
  "store",
  "tempdir",
+ "tempfile",
  "tokio",
+ "tokio-timer 0.2.13",
  "tree_hash",
  "types",
 ]
