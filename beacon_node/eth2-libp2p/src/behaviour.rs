@@ -1,4 +1,4 @@
-use crate::discovery::{enr::Eth2Enr, Discovery};
+use crate::discovery::{enr::Eth2Enr, Discovery, Request};
 use crate::peer_manager::{PeerManager, PeerManagerEvent};
 use crate::rpc::*;
 use crate::types::{GossipEncoding, GossipKind, GossipTopic};
@@ -18,6 +18,7 @@ use std::{
     marker::PhantomData,
     sync::Arc,
     task::{Context, Poll},
+    time::Duration,
 };
 use types::{EnrForkId, EthSpec, SubnetId};
 
@@ -255,8 +256,12 @@ impl<TSpec: EthSpec> Behaviour<TSpec> {
     }
 
     /// A request to search for peers connected to a long-lived subnet.
-    pub fn peers_request(&mut self, subnet_id: SubnetId) {
-        self.discovery.peers_request(subnet_id);
+    pub fn peers_request(&mut self, subnet_id: SubnetId, required_duration: Duration) {
+        self.discovery.peers_request(Request {
+            subnet_id,
+            required_duration,
+            retry_count: 0,
+        });
     }
 
     /// Updates the local ENR's "eth2" field with the latest EnrForkId.

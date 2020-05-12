@@ -163,7 +163,7 @@ impl<TSpec: EthSpec> Service<TSpec> {
                 network_globals
                     .peers
                     .write()
-                    .dialing_peer(&bootnode_enr.peer_id());
+                    .dialing_peer(&bootnode_enr.peer_id(), None);
                 dial_addr(multiaddr);
             }
         }

@@ -4,6 +4,7 @@ use crate::rpc::{
     protocol::{Encoding, Protocol, ProtocolId, RPCError, Version},
 };
 use crate::rpc::{ErrorMessage, RPCCodedResponse, RPCRequest, RPCResponse};
+use futures_codec::{Decoder, Encoder};
 use libp2p::bytes::BytesMut;
 use snap::read::FrameDecoder;
 use snap::write::FrameEncoder;
@@ -12,7 +13,6 @@ use std::io::Cursor;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
-use futures_codec::{Decoder, Encoder};
 use types::{EthSpec, SignedBeaconBlock};
 use unsigned_varint::codec::Uvi;
 
@@ -48,11 +48,7 @@ impl<TSpec: EthSpec> Encoder for SSZSnappyInboundCodec<TSpec> {
     type Item = RPCCodedResponse<TSpec>;
     type Error = RPCError;
 
-    fn encode(
-        &mut self,
-        item: Self::Item,
-        dst: &mut BytesMut,
-    ) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
         let bytes = match item {
             RPCCodedResponse::Success(resp) => match resp {
                 RPCResponse::Status(res) => res.as_ssz_bytes(),

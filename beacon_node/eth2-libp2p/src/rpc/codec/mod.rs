@@ -7,8 +7,8 @@ use self::ssz::{SSZInboundCodec, SSZOutboundCodec};
 use self::ssz_snappy::{SSZSnappyInboundCodec, SSZSnappyOutboundCodec};
 use crate::rpc::protocol::RPCError;
 use crate::rpc::{RPCCodedResponse, RPCRequest};
+use futures_codec::{Decoder, Encoder};
 use libp2p::bytes::BytesMut;
-use futures_codec::{Encoder, Decoder};
 use types::EthSpec;
 
 // Known types of codecs

@@ -4,7 +4,8 @@ use crate::rpc::methods::MetaData;
 use crate::PeerId;
 use slog::{crit, warn};
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::Duration;
+use tokio::time::Instant;
 use types::{EthSpec, SubnetId};
 
 /// A peer's reputation (perceived potential usefulness)
@@ -224,7 +225,7 @@ impl<TSpec: EthSpec> PeerDB<TSpec> {
     /* Setters */
 
     /// A peer is being dialed.
-    pub fn dialing_peer(&mut self, peer_id: &PeerId) {
+    pub fn dialing_peer(&mut self, peer_id: &PeerId, required_duration: Option<Duration>) {
         let info = self.peers.entry(peer_id.clone()).or_default();
 
         if info.connection_status.is_disconnected() {
@@ -233,6 +234,28 @@ impl<TSpec: EthSpec> PeerDB<TSpec> {
         info.connection_status = PeerConnectionStatus::Dialing {
             since: Instant::now(),
         };
+        info.required_duration = required_duration;
+    }
+
+    /// Extends the required duration of all peers on the given subnet that have a shorter
+    /// required_duration than what's given
+    pub fn extend_peers_on_subnet(
+        &mut self,
+        subnet_id: SubnetId,
+        required_duration: Option<Duration>,
+    ) {
+        self.peers
+            .clone()
+            .iter()
+            .filter(move |(_, info)| {
+                info.connection_status.is_connected() && info.on_subnet(subnet_id)
+            })
+            .for_each(|(peer_id, _)| {
+                let info = self.peers.entry(peer_id.clone()).or_default();
+                if info.required_duration.is_some() && info.required_duration < required_duration {
+                    info.required_duration = required_duration;
+                }
+            });
     }
 
     /// Sets a peer as connected with an ingoing connection.
