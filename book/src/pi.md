@@ -10,6 +10,13 @@ Tested on:
 Raspberry Pi (`aarch64`). Compiling on a faster machine (i.e., `x86_64`
 desktop) may be convenient.*
 
+## With Docker
+
+The Lighthouse pre-built docker image is compatible with the Raspberry Pi 4. Checkout the
+[docker guide](./docker.md) for how to run it.
+
+## From Source
+
 ### 1. Install Ubuntu
 
 Follow the [Ubuntu Raspberry Pi installation instructions](https://ubuntu.com/download/raspberry-pi).

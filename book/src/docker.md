@@ -4,8 +4,10 @@ This repository has a `Dockerfile` in the root which builds an image with the
 `lighthouse` binary installed.
 
 A pre-built image is available on Docker Hub and the
-[sigp/lighthouse](https://github.com/sigp/lighthouse-docker) repository
-contains a full-featured `docker-compose` environment.
+[sigp/lighthouse-docker](https://github.com/sigp/lighthouse-docker) repository
+contains a full-featured `docker-compose` environment. Note that the pre-built
+image is also compatible with the Raspberry Pi 4 on a 64-bit OS, but lighthouse-docker
+is not yet compatible.
 
 ## Obtaining the Docker image
 
