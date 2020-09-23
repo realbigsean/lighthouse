@@ -86,7 +86,7 @@ pub fn cli_run(matches: &ArgMatches, base_dir: PathBuf) -> Result<(), String> {
     // Create a new random mnemonic.
     //
     // The `tiny-bip39` crate uses `thread_rng()` for this entropy.
-    let mnemonic = Mnemonic::new(MnemonicType::Words12, Language::English);
+    let mnemonic = Mnemonic::new(MnemonicType::Words24, Language::English);
 
     let wallet = create_wallet_from_mnemonic(matches, &base_dir.as_path(), &mnemonic)?;
 
@@ -95,7 +95,7 @@ pub fn cli_run(matches: &ArgMatches, base_dir: PathBuf) -> Result<(), String> {
             .map_err(|e| format!("Unable to write mnemonic to {:?}: {:?}", path, e))?;
     }
 
-    println!("Your wallet's 12-word BIP-39 mnemonic is:");
+    println!("Your wallet's 24-word BIP-39 mnemonic is:");
     println!();
     println!("\t{}", mnemonic.phrase());
     println!();
