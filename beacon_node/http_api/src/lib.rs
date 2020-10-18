@@ -367,6 +367,8 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path::end())
         .and_then(|state_id: StateId, chain: Arc<BeaconChain<T>>| {
             blocking_json_task(move || {
+                warn!(log, "genesis state root {}", chain.genesis_state_root);
+                warn!(log, "genesis state root data {}", pi_types::RootData::from(chain.genesis_state_root));
                 state_id
                     .root(&chain)
                     .map(api_types::RootData::from)
