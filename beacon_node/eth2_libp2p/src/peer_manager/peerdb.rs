@@ -7,7 +7,7 @@ use crate::PeerId;
 use rand::seq::SliceRandom;
 use slog::{crit, debug, trace, warn};
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
 use types::{EthSpec, SubnetId};
 
@@ -171,7 +171,7 @@ impl<TSpec: EthSpec> PeerDB<TSpec> {
     fn ip_is_banned(&self, peer: &PeerInfo<TSpec>) -> bool {
         peer.seen_addresses
             .iter()
-            .any(|addr| self.banned_peers_count.ip_is_banned(addr))
+            .any(|addr| self.banned_peers_count.ip_is_banned(&addr.ip()))
     }
 
     /// Returns true if the IP is banned.
@@ -368,12 +368,12 @@ impl<TSpec: EthSpec> PeerDB<TSpec> {
         info.connect_ingoing();
 
         // Add the seen ip address to the peer's info
-        if let Some(ip_addr) = multiaddr.iter().find_map(|p| match p {
+        if let Some(socket_addr) = multiaddr.iter().find_map(|p| match p {
             Protocol::Ip4(ip) => Some(ip.into()),
             Protocol::Ip6(ip) => Some(ip.into()),
             _ => None,
         }) {
-            info.seen_addresses.insert(ip_addr);
+            info.seen_addresses.insert(socket_addr);
         }
     }
 
@@ -389,12 +389,12 @@ impl<TSpec: EthSpec> PeerDB<TSpec> {
         info.connect_outgoing();
 
         // Add the seen ip address to the peer's info
-        if let Some(ip_addr) = multiaddr.iter().find_map(|p| match p {
+        if let Some(socket_addr) = multiaddr.iter().find_map(|p| match p {
             Protocol::Ip4(ip) => Some(ip.into()),
             Protocol::Ip6(ip) => Some(ip.into()),
             _ => None,
         }) {
-            info.seen_addresses.insert(ip_addr);
+            info.seen_addresses.insert(socket_addr);
         }
     }
 
@@ -424,8 +424,7 @@ impl<TSpec: EthSpec> PeerDB<TSpec> {
             self.disconnected_peers = self.disconnected_peers.saturating_sub(1);
         }
         if !info.connection_status.is_banned() {
-            info.connection_status
-                .ban(info.seen_addresses.iter().cloned().collect());
+            info.connection_status.ban(info.seen_addresses.iter().cloned().map(|seen_addr|seen_addr.ip()).collect());
             self.banned_peers_count
                 .add_banned_peer(&info.connection_status);
         }

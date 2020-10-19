@@ -734,7 +734,7 @@ impl<TSpec: EthSpec> PeerManager<TSpec> {
             .map(|info| {
                 info.seen_addresses
                     .iter()
-                    .filter(|ip| peer_db.is_ip_banned(ip))
+                    .filter(|socket_addr| peer_db.is_ip_banned(&socket_addr.ip()))
                     .cloned()
                     .collect::<Vec<_>>()
             })

@@ -485,7 +485,7 @@ impl<TSpec: EthSpec> Discovery<TSpec> {
     }
 
     // Bans a peer and it's associated seen IP addresses.
-    pub fn ban_peer(&mut self, peer_id: &PeerId, ip_addresses: Vec<IpAddr>) {
+    pub fn ban_peer(&mut self, peer_id: &PeerId, socket_addresses: Vec<SocketAddr>) {
         // first try and convert the peer_id to a node_id.
         if let Ok(node_id) = peer_id_to_node_id(peer_id) {
             // If we could convert this peer id, remove it from the DHT and ban it from discovery.
@@ -494,20 +494,20 @@ impl<TSpec: EthSpec> Discovery<TSpec> {
             self.discv5.remove_node(&node_id);
         }
 
-        for ip_address in ip_addresses {
-            self.discv5.ban_ip(ip_address);
+        for socket_address in socket_addresses {
+            self.discv5.ban_ip(socket_address.ip());
         }
     }
 
-    pub fn unban_peer(&mut self, peer_id: &PeerId, ip_addresses: Vec<IpAddr>) {
+    pub fn unban_peer(&mut self, peer_id: &PeerId, socket_addresses: Vec<SocketAddr>) {
         // first try and convert the peer_id to a node_id.
         if let Ok(node_id) = peer_id_to_node_id(peer_id) {
             // If we could convert this peer id, remove it from the DHT and ban it from discovery.
             self.discv5.permit_node(&node_id);
         }
 
-        for ip_address in ip_addresses {
-            self.discv5.permit_ip(ip_address);
+        for socket_address in socket_addresses {
+            self.discv5.permit_ip(socket_address.ip());
         }
     }
 
