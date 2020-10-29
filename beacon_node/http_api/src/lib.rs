@@ -115,7 +115,7 @@ pub fn slog_logging(
                     || status == StatusCode::NOT_FOUND
                     || status == StatusCode::PARTIAL_CONTENT =>
             {
-                trace!(
+                info!(
                     log,
                     "Processed HTTP API request";
                     "elapsed" => format!("{:?}", info.elapsed()),
