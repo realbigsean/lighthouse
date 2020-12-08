@@ -1,4 +1,4 @@
-# Lighthouse Book
+# Lighthouse Book Banana
 
 Contains an [mdBook](https://github.com/rust-lang-nursery/mdBook) that serves
 as the primary source of Lighthouse user documentation.
