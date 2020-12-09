@@ -147,7 +147,6 @@ jobs:
 
             - name: Download artifacts
               uses: actions/download-artifact@v2
-              path: .
 
             - name: check downloaded
               run: ls
