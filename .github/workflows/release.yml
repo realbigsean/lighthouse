@@ -141,7 +141,6 @@ jobs:
         needs:  [zip-artifacts-creator, extract-version]
         runs-on: ubuntu-latest
         steps:
-            -
             # ==============================
             #       Download artifacts
             # ==============================
