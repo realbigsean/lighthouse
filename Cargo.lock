@@ -1101,7 +1101,7 @@ dependencies = [
  "toml",
  "tree_hash",
  "types",
- "url 2.2.0",
+ "url 2.1.1",
 ]
 
 [[package]]
@@ -1674,8 +1674,8 @@ dependencies = [
  "parking_lot 0.11.0",
  "rand 0.7.3",
  "rlp",
- "sha2 0.9.2",
- "smallvec 1.5.0",
+ "sha2 0.9.1",
+ "smallvec 1.4.2",
  "tokio 0.3.5",
  "tokio-util 0.5.1",
  "tracing",
@@ -4144,9 +4144,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.6.23"
+version = "0.6.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4afd66f5b91bf2a3bc13fad0e21caedac168ca4c707504e75585648ae80e4cc4"
+checksum = "fce347092656428bc8eaf6201042cb551b8d67855af7374542a92a0fbfcac430"
 dependencies = [
  "cfg-if 0.1.10",
  "fuchsia-zircon",
@@ -4182,7 +4182,7 @@ checksum = "afcb699eb26d4332647cc848492bbc15eafb26f08d0304550d5aa1f612e066f0"
 dependencies = [
  "iovec",
  "libc",
- "mio 0.6.23",
+ "mio 0.6.22",
 ]
 
 [[package]]
@@ -5778,7 +5778,7 @@ dependencies = [
  "hmac 0.10.1",
  "pbkdf2 0.6.0",
  "salsa20",
- "sha2 0.9.2",
+ "sha2 0.9.1",
 ]
 
 [[package]]
@@ -6806,9 +6806,18 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "0.3.4"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "238ce071d267c5710f9d31451efec16c5ee22de34df17cc05e56cbc92e967117"
+checksum = "ccf8dbc19eb42fba10e8feaaec282fb50e2c14b2726d6301dbfeed0f73306a6f"
+dependencies = [
+ "tinyvec_macros",
+]
+
+[[package]]
+name = "tinyvec_macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
@@ -6818,7 +6827,7 @@ checksum = "5a09c0b5bb588872ab2f09afa13ee6e9dac11e10a0ec9e8e3ba39a5a5d530af6"
 dependencies = [
  "bytes 0.4.12",
  "futures 0.1.30",
- "mio 0.6.23",
+ "mio 0.6.22",
  "num_cpus",
  "tokio-codec",
  "tokio-current-thread",
@@ -6846,11 +6855,11 @@ dependencies = [
  "iovec",
  "lazy_static",
  "memchr",
- "mio 0.6.23",
+ "mio 0.6.22",
  "num_cpus",
- "pin-project-lite 0.1.11",
+ "pin-project-lite 0.1.10",
  "slab 0.4.2",
- "tokio-macros 0.2.6",
+ "tokio-macros 0.2.5",
 ]
 
 [[package]]
@@ -6905,8 +6914,8 @@ checksum = "bb4cec419b8b6f06c32e74aae6d8c5e79646d038a38e5ea2b36045f2c3296e22"
 dependencies = [
  "bytes 0.5.6",
  "once_cell",
- "pin-project-lite 0.1.11",
- "tokio 0.2.23",
+ "pin-project-lite 0.1.10",
+ "tokio 0.2.22",
  "tokio 0.3.5",
 ]
 
@@ -6920,7 +6929,7 @@ dependencies = [
  "futures 0.1.30",
  "iovec",
  "log 0.4.11",
- "mio 0.6.23",
+ "mio 0.6.22",
  "scoped-tls 0.1.2",
  "tokio 0.1.22",
  "tokio-executor",
@@ -7012,7 +7021,7 @@ dependencies = [
  "futures 0.1.30",
  "lazy_static",
  "log 0.4.11",
- "mio 0.6.23",
+ "mio 0.6.22",
  "num_cpus",
  "parking_lot 0.9.0",
  "slab 0.4.2",
@@ -7040,7 +7049,7 @@ dependencies = [
  "bytes 0.4.12",
  "futures 0.1.30",
  "iovec",
- "mio 0.6.23",
+ "mio 0.6.22",
  "tokio-io",
  "tokio-reactor",
 ]
@@ -7127,7 +7136,7 @@ dependencies = [
  "bytes 0.4.12",
  "futures 0.1.30",
  "log 0.4.11",
- "mio 0.6.23",
+ "mio 0.6.22",
  "tokio-codec",
  "tokio-io",
  "tokio-reactor",
@@ -7144,7 +7153,7 @@ dependencies = [
  "iovec",
  "libc",
  "log 0.3.9",
- "mio 0.6.23",
+ "mio 0.6.22",
  "mio-uds",
  "tokio-core",
  "tokio-io",
@@ -7161,7 +7170,7 @@ dependencies = [
  "iovec",
  "libc",
  "log 0.4.11",
- "mio 0.6.23",
+ "mio 0.6.22",
  "mio-uds",
  "tokio-codec",
  "tokio-io",
@@ -7496,9 +7505,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-normalization"
-version = "0.1.13"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fb19cf769fa8c6a80a162df694621ebeb4dafb606470b2b2fce0be40a98a977"
+checksum = "a13e63ab62dbe32aeee58d1c5408d35c36c392bba5d9d3142287219721afe606"
 dependencies = [
  "tinyvec",
 ]
@@ -7767,7 +7776,7 @@ dependencies = [
  "scoped-tls 1.0.0",
  "serde",
  "serde_json",
- "serde_urlencoded",
+ "serde_urlencoded 0.7.0",
  "tokio 0.3.5",
  "tokio-tungstenite",
  "tower-service",
