@@ -84,11 +84,11 @@ jobs:
               if:  startsWith(matrix.arch, 'aarch64')
               run: mv target/aarch64-unknown-linux-gnu/release ~/.cargo/bin/lighthouse
 
-#            - name: Build Lighthouse for ${{matrix.arch}}
-#              if:   !startsWith(matrix.arch, 'aarch64')
-#              env:
-#                  PORTABLE: ${{ endsWith(matrix.arch, 'portable') }}
-#              run:  make
+            - name: Build Lighthouse for ${{matrix.arch}}
+              if:   startsWith(matrix.arch, 'x86_64')
+              env:
+                  PORTABLE: ${{ endsWith(matrix.arch, 'portable') }}
+              run:  make
 
             - name: Configure GPG
               env:
