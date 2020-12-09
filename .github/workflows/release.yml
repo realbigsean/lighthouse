@@ -138,7 +138,7 @@ jobs:
 
     draft-release:
         name:   Draft Release
-        needs:  [zip-artifacts-creator, extract-version]
+        needs:  [build, extract-version]
         runs-on: ubuntu-latest
         steps:
             # ==============================
