@@ -114,9 +114,7 @@ jobs:
                   GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
               run: |
                   export GPG_TTY=$(tty)
-                  mkdir -p ~/.gnupg/
-                  echo "${GPG_SIGNING_KEY}" > ~/.gnupg/private.asc
-                  gpg --import ~/.gnupg/private.asc
+                  echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
 
             - name: Create artifacts
               run: |
