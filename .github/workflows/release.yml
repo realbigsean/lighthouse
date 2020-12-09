@@ -108,17 +108,13 @@ jobs:
                   PORTABLE: ${{ endsWith(matrix.arch, 'portable') }}
               run:  make
 
-            - name: Configure GPG
+            - name: Configure GPG and create artifacts
               env:
                   GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
                   GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
               run: |
                   export GPG_TTY=$(tty)
                   echo "${GPG_SIGNING_KEY}" | gpg --batch --import
-
-            - name: Create artifacts
-              run: |
-                  export GPG_TTY=$(tty)
                   cd ~/.cargo/bin
                   tar -czf lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz lighthouse
                   echo "${GPG_PASSPHRASE}" | gpg --clearsign lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
