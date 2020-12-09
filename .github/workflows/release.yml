@@ -54,15 +54,29 @@ jobs:
                   # This uses the minimal supported version of rust
                   profile:  minimal
                   override: true
-            - name: Cache cargo
+
+            # ==============================
+            #       Setup Caches
+            # ==============================
+
+            - name: Cache cargo x86_64
+              if:   startsWith(matrix.arch, 'x86_64')
               uses: actions/cache@v2
               with:
                   path: |
                       ~/.cargo/registry
                       ~/cargo/git
-                      target
+                      target/release
                   key:  ${{ matrix.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
+            - name: Cache cargo aarch64
+              if:   startsWith(matrix.arch, 'aarch64')
+              uses: actions/cache@v2
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/cargo/git
+                      target/aarch64-unknown-linux-gnu/release
+                  key:  ${{ matrix.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
             # ==============================
             #       Builds
@@ -101,14 +115,14 @@ jobs:
               run: |
                   export GPG_TTY=$(tty)
                   mkdir -p ~/.gnupg/
-                  echo "$GPG_SIGNING_KEY" > ~/.gnupg/private.asc
+                  echo "${GPG_SIGNING_KEY}" > ~/.gnupg/private.asc
                   gpg --import ~/.gnupg/private.asc
 
             - name: Create artifacts
               run: |
                   tar -czf lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz \
                   ~/.cargo/bin/lighthouse;
-                  echo "$GPG_PASSPHRASE" | gpg --clearsign
+                  echo "${GPG_PASSPHRASE}" | gpg --clearsign
 
             # =======================================================================
             # Upload artifacts
@@ -128,18 +142,22 @@ jobs:
                   path:                 lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz.asc
 
             # ==============================
-            #       Prepare cache
+            #       Clean before caching
             # ==============================
 
-            - name: Prepare build directory for cache
-              # can try to find specifics here
-              # rm -fr ./target/release/{deps,.fingerprint}/
-              # ~/lighthouse/target/aarch64-unknown-linux-gnu/release
-              # cache cross installation?
+            - name: Prepare build directory for cache x86_64
+              if:   startsWith(matrix.arch, 'x86_64')
               run:  |
                 find ./target/release -maxdepth 1 -type f -delete;
                 rm -f  ./target/.rustc_info.json;
                 rm -rf ~/.cargo/registry/index/;
+                  -
+            - name: Prepare build directory for cache aarch64
+              if:   startsWith(matrix.arch, 'aarch64')
+              run:  |
+                  find ./target/aarch64-unknown-linux-gnu/release -maxdepth 1 -type f -delete;
+                  rm -f  ./target/aarch64-unknown-linux-gnu/.rustc_info.json;
+                  rm -rf ~/.cargo/registry/index/;
 
     draft-release:
         name:   Draft Release
@@ -155,20 +173,17 @@ jobs:
             - name: Download artifacts
               uses: actions/download-artifact@v2
 
-            - name: check downloaded
-              run: ls
-
             - name: unzip all
               run: |
                 for filename in *.zip; do unzip ${filename}; done
 
-            - name: Generate Full Changelog
-              id: changelog
-              run: echo "::set-output name=CHANGELOG::$(git log --pretty=format:"%s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})"
-
             # ==============================
             #       Create release draft
             # ==============================
+
+            - name: Generate Full Changelog
+              id: changelog
+              run: echo "::set-output name=CHANGELOG::$(git log --pretty=format:"%s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})"
 
             - name: Create Release Draft
               id:   create_release_draft
@@ -201,8 +216,11 @@ jobs:
                   draft:    true
                   prerelease:   true
 
-                  # Really dumb but seems like you have to do these in seperate steps
+           # ====================================
+           #     Upload Binary Assets to Release
+           # ====================================
 
+            # Unfortunately, each asset has to be done in a separate step
             - name: Upload Release Asset - MacOS
               id:   upload_release_asset_macos
               uses: actions/upload-release-asset@v1.0.1
@@ -269,7 +287,9 @@ jobs:
                   asset_name:   lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz
                   asset_content_type:   application/gzip
 
-# Sigs
+            # =======================================
+            #     Upload Signature Assets to Release
+            # =======================================
 
             - name: Upload Release Asset - MacOS PGP signature
               id:   upload_release_asset_macos_sig
