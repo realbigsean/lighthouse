@@ -122,7 +122,7 @@ jobs:
               run: |
                   tar -czf lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz \
                   ~/.cargo/bin/lighthouse;
-                  echo "${GPG_PASSPHRASE}" | gpg --clearsign
+                  echo "${GPG_PASSPHRASE}" | gpg --clearsign lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
 
             # =======================================================================
             # Upload artifacts
