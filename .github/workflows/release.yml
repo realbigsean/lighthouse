@@ -86,8 +86,8 @@ jobs:
 
             - name: Build Lighthouse for ${{matrix.arch}}
               if:   !startsWith(matrix.arch, 'aarch64')
-              env:
-                  PORTABLE: ${{ endsWith(matrix.arch, 'portable') }}
+#              env:
+#                  PORTABLE: ${{ endsWith(matrix.arch, 'portable') }}
               run:  make
 
             - name: Configure GPG
