@@ -29,13 +29,17 @@ jobs:
                        x86_64-apple-darwin,
                        x86_64-apple-darwin-portable]
                 include:
-                    -   arch: [aarch64-unknown-linux-gnu,
-                            aarch64-unknown-linux-gnu-portable,
-                            x86_64-unknown-linux-gnu,
-                            x86_64-unknown-linux-gnu-portable]
+                    -   arch: aarch64-unknown-linux-gnu
                         platform: ubuntu-latest
-                    -   arch: [x86_64-apple-darwin,
-                            x86_64-apple-darwin-portable]
+                    -   arch: aarch64-unknown-linux-gnu-portable
+                        platform: ubuntu-latest
+                    -   arch: x86_64-unknown-linux-gnu
+                        platform: ubuntu-latest
+                    -   arch: x86_64-unknown-linux-gnu-portable
+                        platform: ubuntu-latest
+                    -   arch: x86_64-apple-darwin
+                        platform: macos-latest
+                    -   arch: x86_64-apple-darwin-portable
                         platform: macos-latest
 
         runs-on:    ${{ matrix.platform }}
