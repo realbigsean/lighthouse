@@ -83,10 +83,7 @@ impl<T: EthSpec> PeerInfo<T> {
     /// Returns if the peer is subscribed to a given `SubnetId`
     pub fn on_subnet(&self, subnet_id: SubnetId) -> bool {
         if let Some(meta_data) = &self.meta_data {
-            return meta_data
-                .attnets
-                .get(*subnet_id as usize)
-                .unwrap_or_else(|_| false);
+            return meta_data.attnets.get(*subnet_id as usize).unwrap_or(false);
         }
         false
     }
@@ -319,6 +316,15 @@ impl Default for PeerStatus {
 pub enum ConnectionDirection {
     Incoming,
     Outgoing,
+}
+
+impl ConnectionDirection {
+    pub fn as_static_str(&self) -> &'static str {
+        match self {
+            ConnectionDirection::Incoming => "incoming",
+            ConnectionDirection::Outgoing => "outgoing",
+        }
+    }
 }
 
 /// Connection Status of the peer.

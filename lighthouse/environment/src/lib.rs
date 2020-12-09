@@ -8,7 +8,7 @@
 //! logging.
 
 use eth2_config::Eth2Config;
-use eth2_testnet_config::Eth2TestnetConfig;
+use eth2_network_config::Eth2NetworkConfig;
 use futures::channel::{
     mpsc::{channel, Receiver, Sender},
     oneshot,
@@ -38,7 +38,7 @@ pub struct EnvironmentBuilder<E: EthSpec> {
     log: Option<Logger>,
     eth_spec_instance: E,
     eth2_config: Eth2Config,
-    testnet: Option<Eth2TestnetConfig>,
+    testnet: Option<Eth2NetworkConfig>,
 }
 
 impl EnvironmentBuilder<MinimalEthSpec> {
@@ -161,9 +161,9 @@ impl<E: EthSpec> EnvironmentBuilder<E> {
                 .as_secs();
             let file_stem = path
                 .file_stem()
-                .ok_or_else(|| "Invalid file name".to_string())?
+                .ok_or("Invalid file name")?
                 .to_str()
-                .ok_or_else(|| "Failed to create str from filename".to_string())?;
+                .ok_or("Failed to create str from filename")?;
             let file_ext = path.extension().unwrap_or_else(|| OsStr::new(""));
             let backup_name = format!("{}_backup_{}", file_stem, timestamp);
             let backup_path = path.with_file_name(backup_name).with_extension(file_ext);
@@ -221,15 +221,15 @@ impl<E: EthSpec> EnvironmentBuilder<E> {
     }
 
     /// Adds a testnet configuration to the environment.
-    pub fn eth2_testnet_config(
+    pub fn eth2_network_config(
         mut self,
-        eth2_testnet_config: Eth2TestnetConfig,
+        eth2_network_config: Eth2NetworkConfig,
     ) -> Result<Self, String> {
         // Create a new chain spec from the default configuration.
-        self.eth2_config.spec = eth2_testnet_config
+        self.eth2_config.spec = eth2_network_config
             .yaml_config
             .as_ref()
-            .ok_or_else(|| "The testnet directory must contain a spec config".to_string())?
+            .ok_or("The testnet directory must contain a spec config")?
             .apply_to_chain_spec::<E>(&self.eth2_config.spec)
             .ok_or_else(|| {
                 format!(
@@ -238,18 +238,18 @@ impl<E: EthSpec> EnvironmentBuilder<E> {
                 )
             })?;
 
-        self.testnet = Some(eth2_testnet_config);
+        self.testnet = Some(eth2_network_config);
 
         Ok(self)
     }
 
     /// Optionally adds a testnet configuration to the environment.
-    pub fn optional_eth2_testnet_config(
+    pub fn optional_eth2_network_config(
         self,
-        optional_config: Option<Eth2TestnetConfig>,
+        optional_config: Option<Eth2NetworkConfig>,
     ) -> Result<Self, String> {
         if let Some(config) = optional_config {
-            self.eth2_testnet_config(config)
+            self.eth2_network_config(config)
         } else {
             Ok(self)
         }
@@ -262,14 +262,12 @@ impl<E: EthSpec> EnvironmentBuilder<E> {
         Ok(Environment {
             runtime: self
                 .runtime
-                .ok_or_else(|| "Cannot build environment without runtime".to_string())?,
+                .ok_or("Cannot build environment without runtime")?,
             signal_tx,
             signal_rx: Some(signal_rx),
             signal: Some(signal),
             exit,
-            log: self
-                .log
-                .ok_or_else(|| "Cannot build environment without log".to_string())?,
+            log: self.log.ok_or("Cannot build environment without log")?,
             eth_spec_instance: self.eth_spec_instance,
             eth2_config: self.eth2_config,
             testnet: self.testnet,
@@ -324,7 +322,7 @@ pub struct Environment<E: EthSpec> {
     log: Logger,
     eth_spec_instance: E,
     pub eth2_config: Eth2Config,
-    pub testnet: Option<Eth2TestnetConfig>,
+    pub testnet: Option<Eth2NetworkConfig>,
 }
 
 impl<E: EthSpec> Environment<E> {

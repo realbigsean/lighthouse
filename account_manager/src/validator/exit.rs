@@ -7,7 +7,7 @@ use eth2::{
     BeaconNodeHttpClient, Url,
 };
 use eth2_keystore::Keystore;
-use eth2_testnet_config::Eth2TestnetConfig;
+use eth2_network_config::Eth2NetworkConfig;
 use safe_arith::SafeArith;
 use slot_clock::{SlotClock, SystemTimeSlotClock};
 use std::path::PathBuf;
@@ -99,7 +99,7 @@ async fn publish_voluntary_exit<E: EthSpec>(
     client: &BeaconNodeHttpClient,
     spec: &ChainSpec,
     stdin_inputs: bool,
-    testnet_config: &Eth2TestnetConfig,
+    testnet_config: &Eth2NetworkConfig,
 ) -> Result<(), String> {
     let genesis_data = get_geneisis_data(client).await?;
     let testnet_genesis_root = testnet_config
@@ -125,7 +125,7 @@ async fn publish_voluntary_exit<E: EthSpec>(
     let keypair = load_voting_keypair(keystore_path, password_file_path, stdin_inputs)?;
 
     let epoch = get_current_epoch::<E>(genesis_data.genesis_time, spec)
-        .ok_or_else(|| "Failed to get current epoch. Please check your system time".to_string())?;
+        .ok_or("Failed to get current epoch. Please check your system time")?;
     let validator_index = get_validator_index_for_exit(client, &keypair.pk, epoch, spec).await?;
 
     let fork = get_beacon_state_fork(client).await?;
@@ -248,7 +248,7 @@ async fn get_beacon_state_fork(client: &BeaconNodeHttpClient) -> Result<Fork, St
         .get_beacon_states_fork(StateId::Head)
         .await
         .map_err(|e| format!("Failed to get get fork: {:?}", e))?
-        .ok_or_else(|| "Failed to get fork, state not found".to_string())?
+        .ok_or("Failed to get fork, state not found")?
         .data)
 }
 

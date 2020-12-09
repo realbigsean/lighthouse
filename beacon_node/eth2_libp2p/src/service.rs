@@ -6,7 +6,7 @@ use crate::multiaddr::Protocol;
 use crate::rpc::{GoodbyeReason, MetaData, RPCResponseErrorCode, RequestId};
 use crate::types::{error, EnrBitfield, GossipKind};
 use crate::EnrExt;
-use crate::{NetworkConfig, NetworkGlobals, PeerAction};
+use crate::{NetworkConfig, NetworkGlobals, PeerAction, ReportSource};
 use futures::prelude::*;
 use libp2p::core::{
     identity::Keypair, multiaddr::Multiaddr, muxing::StreamMuxerBox, transport::Boxed,
@@ -251,13 +251,13 @@ impl<TSpec: EthSpec> Service<TSpec> {
     }
 
     /// Report a peer's action.
-    pub fn report_peer(&mut self, peer_id: &PeerId, action: PeerAction) {
-        self.swarm.report_peer(peer_id, action);
+    pub fn report_peer(&mut self, peer_id: &PeerId, action: PeerAction, source: ReportSource) {
+        self.swarm.report_peer(peer_id, action, source);
     }
 
     /// Disconnect and ban a peer, providing a reason.
-    pub fn goodbye_peer(&mut self, peer_id: &PeerId, reason: GoodbyeReason) {
-        self.swarm.goodbye_peer(peer_id, reason);
+    pub fn goodbye_peer(&mut self, peer_id: &PeerId, reason: GoodbyeReason, source: ReportSource) {
+        self.swarm.goodbye_peer(peer_id, reason, source);
     }
 
     /// Sends a response to a peer's request.
@@ -375,8 +375,8 @@ fn build_transport(
 // Useful helper functions for debugging. Currently not used in the client.
 #[allow(dead_code)]
 fn keypair_from_hex(hex_bytes: &str) -> error::Result<Keypair> {
-    let hex_bytes = if hex_bytes.starts_with("0x") {
-        hex_bytes[2..].to_string()
+    let hex_bytes = if let Some(stripped) = hex_bytes.strip_prefix("0x") {
+        stripped.to_string()
     } else {
         hex_bytes.to_string()
     };
