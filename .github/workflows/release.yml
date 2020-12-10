@@ -53,8 +53,12 @@ jobs:
                   GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
               run: |
                   export GPG_TTY=$(tty)
-                  echo "${GPG_SIGNING_KEY}" | gpg --batch --import
-                  echo "test" > test.txt
+                  echo "${GPG_SIGNING_KEY}" | gpg --batch --import;
+                  ls;
+                  pwd;
+                  echo "test" > test.txt;
+                  ls;
+                  pwd;
                   echo "${GPG_PASSPHRASE}" | gpg --batch --yes --clearsign test.txt
 #              uses: actions-rs/toolchain@v1
 #              with:
