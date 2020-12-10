@@ -171,6 +171,9 @@ jobs:
             - name: Download artifacts
               uses: actions/download-artifact@v2
 
+            - name: Display structure of downloaded files
+              run: ls -R artifacts
+
             # ==============================
             #       Create release draft
             # ==============================
@@ -222,7 +225,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz
                   asset_name:   lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz
                   asset_content_type:   application/gzip
 
@@ -233,7 +236,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz
                   asset_name:   lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz
                   asset_content_type:   application/gzip
 
@@ -244,7 +247,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz
                   asset_name:   lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz
                   asset_content_type:   application/gzip
 
@@ -255,7 +258,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz
                   asset_name:   lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz
                   asset_content_type:   application/gzip
 
@@ -266,7 +269,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz
                   asset_name:   lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz
                   asset_content_type:   application/gzip
 
@@ -277,7 +280,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz
                   asset_name:   lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz
                   asset_content_type:   application/gzip
 
@@ -292,7 +295,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz.asc
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz.asc/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz.asc
                   asset_name:   lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz.asc
                   asset_content_type:   text/plain
 
@@ -303,7 +306,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz.asc
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz.asc/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz.asc
                   asset_name:   lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz.asc
                   asset_content_type:   text/plain
 
@@ -314,7 +317,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz.asc
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz.asc/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz.asc
                   asset_name:   lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz.asc
                   asset_content_type:   text/plain
 
@@ -325,7 +328,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz.asc
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz.asc/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz.asc
                   asset_name:   lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz.asc
                   asset_content_type:   text/plain
 
@@ -336,7 +339,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz.asc
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz.asc/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz.asc
                   asset_name:   lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz.asc
                   asset_content_type:   text/plain
 
@@ -347,6 +350,6 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url:   ${{ steps.create_release_draft.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-                  asset_path:   ./lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz.asc
+                  asset_path:   ./lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz.asc/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz.asc
                   asset_name:   lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz.asc
                   asset_content_type:   text/plain
