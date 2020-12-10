@@ -109,17 +109,14 @@ jobs:
               run:  make
 
             - name: Configure GPG and create artifacts
-              env:
-                  GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
-                  GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
               run: |
                   export GPG_TTY=$(tty)
-                  echo "${GPG_SIGNING_KEY}" | gpg --batch --import
+                  echo "${{ secrets.GPG_SIGNING_KEY }}" | gpg --batch --import
                   mkdir artifacts
                   mv ~/.cargo/bin/lighthouse ./artifacts
                   cd artifacts
                   tar -czf lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz lighthouse
-                  gpg --passphrase "${{ env.GPG_PASSPHRASE }}" --pinentry-mode loopback --batch -ab lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
+                  gpg --passphrase "${{ secrets.GPG_PASSPHRASE }}" --pinentry-mode loopback --batch -ab lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
                   mv *tar.gz* ..
 
             # =======================================================================
@@ -171,12 +168,12 @@ jobs:
             - name: Download artifacts
               uses: actions/download-artifact@v2
 
-            - name: Display structure of downloaded files
-              run: ls -R
-
             # ==============================
             #       Create release draft
             # ==============================
+
+            - name: Checkout sources
+              uses: actions/checkout@v2
 
             - name: Generate Full Changelog
               id: changelog
@@ -189,29 +186,35 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
               with:
                   tag_name: ${{ needs.extract-version.outputs.VERSION }}
-                  release_name: <Insert Rick and Morty character> ${{ needs.extract-version.outputs.VERSION }}
+                  release_name: <Rick and Morty character>
                   body: |
-                      This release contains <ADD_TEXT>
+                      ## Summary
 
-                      Full Changelog:
+                      <summary>
+
+                      ## All Changes
+
                       ${{ steps.changelog.outputs.CHANGELOG }}
+
+                      ## Binaries
+
+                      [See pre-built binaries documentation.](https://lighthouse-book.sigmaprime.io/installation-binaries.html)
+
+                      The binaries are signed with Sigma Prime's PGP key: `A6F82EEC40377219F34CD38146DA9C537C6B40ED`
 
                       | System | Architecture | Binary | PGP Signature |
                       |:---:|:---:|:---:|:---|
-                      | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x64 | [lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz.asc) |
-                      | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x64 | [lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz.asc) |
-                      | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x64 | [lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz.asc) |
-                      | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x64 | [lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz.asc) |
-                      | <img src="https://simpleicons.org/icons/raspberrypi.svg" style="width: 32px;"/> | x64 | [lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz.asc) |
-                      | <img src="https://simpleicons.org/icons/raspberrypi.svg" style="width: 32px;"/> | x64 | [lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz.asc) |
+                      | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x86_64 | [lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz.asc) |
+                      | <img src="https://simpleicons.org/icons/apple.svg" style="width: 32px;"/> | x86_64 | [lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-x86_64-apple-darwin-portable.tar.gz.asc) |
+                      | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x86_64 | [lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz.asc) |
+                      | <img src="https://simpleicons.org/icons/linux.svg" style="width: 32px;"/> | x86_64 | [lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-x86_64-unknown-linux-gnu-portable.tar.gz.asc) |
+                      | <img src="https://simpleicons.org/icons/raspberrypi.svg" style="width: 32px;"/> | aarch64 | [lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz.asc) |
+                      | <img src="https://simpleicons.org/icons/raspberrypi.svg" style="width: 32px;"/> | aarch64 | [lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz](https://github.com/${{ env.REPO_NAME }}/releases/download/${{ env.VERSION }}/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz) | [PGP Signature](https://github.com/${{ env.REPO_NAME }}/releases/download/lighthouse-${{ env.VERSION }}-aarch64-unknown-linux-gnu-portable.tar.gz.asc) |
                       | | | | |
                       | **System** | **Option** | - | **Resource** |
                       | <img src="https://simpleicons.org/icons/docker.svg" style="width: 32px;"/> | Docker | - | TODO |
 
-                      PGP public Key: `A6F82EEC40377219F34CD38146DA9C537C6B40ED`
-
                   draft:    true
-                  prerelease:   true
 
            # ====================================
            #     Upload Binary Assets to Release
