@@ -119,7 +119,7 @@ jobs:
                   mv ~/.cargo/bin/lighthouse ./artifacts
                   cd artifacts
                   tar -czf lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz lighthouse
-                  gpg --passphrase "${{ env.GPG_PASSPHRASE }}" --pinentry-mode loopback --batch --clear-sign ./test.txt
+                  gpg --passphrase "${{ env.GPG_PASSPHRASE }}" --pinentry-mode loopback --batch --clear-sign lighthouse-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.arch }}.tar.gz
                   mv *tar.gz* ..
 
             # =======================================================================
