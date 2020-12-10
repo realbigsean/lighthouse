@@ -161,6 +161,10 @@ jobs:
         env:
             VERSION:  ${{ needs.extract-version.outputs.VERSION }}
         steps:
+            # This is necessary for generating the changelog. It has to come before "Download Artifacts" or else it deletes the artifacts.
+            - name: Checkout sources
+              uses: actions/checkout@v2
+
             # ==============================
             #       Download artifacts
             # ==============================
@@ -172,12 +176,9 @@ jobs:
             #       Create release draft
             # ==============================
 
-            - name: Checkout sources
-              uses: actions/checkout@v2
-
             - name: Generate Full Changelog
               id: changelog
-              run: echo "::set-output name=CHANGELOG::$(git log --pretty=format:"%s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})"
+              run: echo "::set-output name=CHANGELOG::$(git log --pretty=format:"%s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..HEAD)"
 
             - name: Create Release Draft
               id:   create_release_draft
