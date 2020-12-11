@@ -221,4 +221,4 @@ jobs:
                     assets+=("-a" "$asset/$asset")
                 done
                 tag_name="${{ env.VERSION }}"
-                echo $body | hub release create --draft "${assets[@]}" -F "-" "$tag_name"
+                echo "$body" | hub release create --draft "${assets[@]}" -F "-" "$tag_name"
