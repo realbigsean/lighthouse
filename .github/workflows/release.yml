@@ -186,12 +186,12 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                body=$(cat << ENDBODY
+                body=$(cat <<-ENDBODY
                     <Rick and Morty character>
 
                     ## Summary
 
-                    <summary>
+                    Add a summary.
 
                     ## All Changes
 
