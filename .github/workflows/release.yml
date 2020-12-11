@@ -198,7 +198,7 @@ jobs:
 
                 ## Binaries
 
-                See pre-built binaries documentation. ](https://lighthouse-book.sigmaprime.io/installation-binaries.html)
+                [See pre-built binaries documentation.](https://lighthouse-book.sigmaprime.io/installation-binaries.html)
 
                 The binaries are signed with Sigma Prime's PGP key: `${{ secrets.GPG_PUBLIC_KEY }}`
 
