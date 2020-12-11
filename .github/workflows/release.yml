@@ -180,13 +180,15 @@ jobs:
 
             - name: Generate Full Changelog
               id: changelog
-              run: echo "::set-output name=CHANGELOG::$(git log --pretty=format:"%s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})"
+              run: echo "::set-output name=CHANGELOG::$(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 ${{ env.VERSION }}^)..${{ env.VERSION }})"
 
             - name: Create Release Draft
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                 body=$(cat << ENDBODY
+                    <Rick and Morty character>
+
                     ## Summary
 
                     <summary>
@@ -219,4 +221,4 @@ jobs:
                     assets+=("-a" "$asset/$asset")
                 done
                 tag_name="${{ env.VERSION }}"
-                hub release create --draft "${assets[@]}" -m "<Rick and Morty character>" -m "${body}" "$tag_name"
+                echo $body | hub release create --draft "${assets[@]}" -F "-" "$tag_name"
