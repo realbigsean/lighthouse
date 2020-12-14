@@ -97,17 +97,19 @@ jobs:
               with:
                   use-cross: true
                   command: build
-                  args: --release --manifest-path lighthouse/Cargo.toml --target aarch64-unknown-linux-gnu
+                  args: --release --manifest-path lighthouse/Cargo.toml --target aarch64-unknown-linux-gnu --features modern
 
             - name: Move cross-compiled binary
               if:  startsWith(matrix.arch, 'aarch64')
               run: mv target/aarch64-unknown-linux-gnu/release/lighthouse ~/.cargo/bin/lighthouse
 
-            - name: Build Lighthouse for ${{matrix.arch}}
-              if:   startsWith(matrix.arch, 'x86_64')
-              env:
-                  PORTABLE: ${{ endsWith(matrix.arch, 'portable') }}
-              run:  make
+            - name: Build Lighthouse for ${{matrix.arch}} portable
+              if:   startsWith(matrix.arch, 'x86_64') && endsWith(matrix.arch, 'portable')
+              run:  cargo install --path lighthouse --force --locked --features portable
+
+            - name: Build Lighthouse for ${{matrix.arch}} modern
+              if:   startsWith(matrix.arch, 'x86_64') && !endsWith(matrix.arch, 'portable')
+              run:  cargo install --path lighthouse --force --locked --features modern
 
             - name: Configure GPG and create artifacts
               run: |
