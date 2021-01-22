@@ -3,12 +3,12 @@ RUN apt-get update && apt-get install -y cmake
 COPY . lighthouse
 ARG PORTABLE
 ENV PORTABLE $PORTABLE
-RUN cd lighthouse && make
+RUN cd lighthouse && RUSTFLAGS='-C force-frame-pointers=y' cargo install --path lighthouse --force --locked --features portable
 
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
   libssl-dev \
-  ca-certificates \
+  ca-certificates linux-perf linux-base \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/local/cargo/bin/lighthouse /usr/local/bin/lighthouse
