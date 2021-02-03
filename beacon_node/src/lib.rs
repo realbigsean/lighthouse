@@ -20,10 +20,11 @@ use slog::{info, warn};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use types::EthSpec;
+use store::MemoryStore;
 
 /// A type-alias to the tighten the definition of a production-intended `Client`.
 pub type ProductionClient<E> =
-    Client<Witness<SystemTimeSlotClock, CachingEth1Backend<E>, E, LevelDB<E>, LevelDB<E>>>;
+    Client<Witness<SystemTimeSlotClock, CachingEth1Backend<E>, E, MemoryStore<E>, MemoryStore<E>>>;
 
 /// The beacon node `Client` that will be used in production.
 ///
@@ -70,7 +71,7 @@ impl<E: EthSpec> ProductionBeaconNode<E> {
             .runtime_context(context)
             .chain_spec(spec)
             .http_api_config(client_config.http_api.clone())
-            .disk_store(&db_path, &freezer_db_path_res?, store_config)?;
+            .memory_store(&db_path, &freezer_db_path_res?, store_config)?;
 
         let builder = if let Some(slasher_config) = client_config.slasher.clone() {
             let slasher = Arc::new(

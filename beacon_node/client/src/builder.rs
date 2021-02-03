@@ -5,7 +5,7 @@ use beacon_chain::{
     builder::{BeaconChainBuilder, Witness},
     eth1_chain::{CachingEth1Backend, Eth1Chain},
     slot_clock::{SlotClock, SystemTimeSlotClock},
-    store::{HotColdDB, ItemStore, LevelDB, StoreConfig},
+    store::{HotColdDB, MemoryStore, ItemStore, LevelDB, StoreConfig},
     BeaconChain, BeaconChainTypes, Eth1ChainBackend, ServerSentEventHandler,
 };
 use environment::RuntimeContext;
@@ -528,14 +528,14 @@ where
 }
 
 impl<TSlotClock, TEth1Backend, TEthSpec>
-    ClientBuilder<Witness<TSlotClock, TEth1Backend, TEthSpec, LevelDB<TEthSpec>, LevelDB<TEthSpec>>>
+    ClientBuilder<Witness<TSlotClock, TEth1Backend, TEthSpec, MemoryStore<TEthSpec>, MemoryStore<TEthSpec>>>
 where
     TSlotClock: SlotClock + 'static,
     TEth1Backend: Eth1ChainBackend<TEthSpec> + 'static,
     TEthSpec: EthSpec + 'static,
 {
     /// Specifies that the `Client` should use a `HotColdDB` database.
-    pub fn disk_store(
+    pub fn memory_store(
         mut self,
         hot_path: &Path,
         cold_path: &Path,
@@ -554,7 +554,7 @@ where
         self.db_path = Some(hot_path.into());
         self.freezer_db_path = Some(cold_path.into());
 
-        let store = HotColdDB::open(hot_path, cold_path, config, spec, context.log().clone())
+        let store = HotColdDB::open_ephemeral(config, spec, context.log().clone())
             .map_err(|e| format!("Unable to open database: {:?}", e))?;
         self.store = Some(Arc::new(store));
         Ok(self)
