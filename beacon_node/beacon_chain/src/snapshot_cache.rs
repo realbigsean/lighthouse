@@ -1,4 +1,5 @@
 use crate::BeaconSnapshot;
+use mem_util_derive::*;
 use std::cmp;
 use types::{beacon_state::CloneConfig, Epoch, EthSpec, Hash256};
 
@@ -17,6 +18,7 @@ pub const DEFAULT_SNAPSHOT_CACHE_SIZE: usize = 4;
 ///
 /// - Never be the `head_block_root`.
 /// - Be the snapshot with the lowest `state.slot` (ties broken arbitrarily).
+#[derive(MallocSizeOf)]
 pub struct SnapshotCache<T: EthSpec> {
     max_len: usize,
     head_block_root: Hash256,

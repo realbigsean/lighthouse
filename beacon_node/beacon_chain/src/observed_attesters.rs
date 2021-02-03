@@ -7,6 +7,7 @@
 //!   the same epoch
 
 use bitvec::vec::BitVec;
+use mem_util_derive::*;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use types::{Attestation, Epoch, EthSpec, Unsigned};
@@ -146,6 +147,7 @@ impl Item for EpochHashSet {
 /// attestations with an epoch prior to `a.data.target.epoch - 32` will be cleared from the cache.
 ///
 /// `T` should be set to a `EpochBitfield` or `EpochHashSet`.
+#[derive(MallocSizeOf)]
 pub struct AutoPruningContainer<T, E: EthSpec> {
     lowest_permissible_epoch: Epoch,
     items: HashMap<Epoch, T>,

@@ -782,6 +782,7 @@ macro_rules! impl_smallvec {
 	};
 }
 
+impl_smallvec!(8);
 impl_smallvec!(32); // kvdb uses this
 impl_smallvec!(36); // trie-db uses this
 

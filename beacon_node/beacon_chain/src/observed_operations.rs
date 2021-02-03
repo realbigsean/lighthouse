@@ -1,4 +1,5 @@
 use derivative::Derivative;
+use mem_util_derive::*;
 use smallvec::SmallVec;
 use state_processing::{SigVerifiedOp, VerifyOperation};
 use std::collections::HashSet;
@@ -13,7 +14,7 @@ pub const SMALL_VEC_SIZE: usize = 8;
 /// Stateful tracker for exit/slashing operations seen on the network.
 ///
 /// Implements the conditions for gossip verification of exits and slashings from the P2P spec.
-#[derive(Debug, Derivative)]
+#[derive(Debug, Derivative, MallocSizeOf)]
 #[derivative(Default(bound = "T: ObservableOperation<E>, E: EthSpec"))]
 pub struct ObservedOperations<T: ObservableOperation<E>, E: EthSpec> {
     /// Indices of validators for whom we have already seen an instance of an operation `T`.

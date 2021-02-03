@@ -2,6 +2,7 @@ use crate::cache_arena;
 use crate::SmallVec8;
 use crate::{Error, Hash256};
 use eth2_hashing::{hash32_concat, ZERO_HASHES};
+use mem_util_derive::*;
 use smallvec::smallvec;
 use ssz_derive::{Decode, Encode};
 use tree_hash::BYTES_PER_CHUNK;
@@ -10,7 +11,7 @@ type CacheArena = cache_arena::CacheArena<Hash256>;
 type CacheArenaAllocation = cache_arena::CacheArenaAllocation<Hash256>;
 
 /// Sparse Merkle tree suitable for tree hashing vectors and lists.
-#[derive(Debug, PartialEq, Clone, Default, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Default, Encode, Decode, MallocSizeOf)]
 pub struct TreeHashCache {
     pub initialized: bool,
     /// Depth is such that the tree has a capacity for 2^depth leaves

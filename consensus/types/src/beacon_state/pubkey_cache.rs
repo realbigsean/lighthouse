@@ -1,10 +1,11 @@
 use crate::*;
+use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 type ValidatorIndex = usize;
 
-#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize, MallocSizeOf)]
 pub struct PubkeyCache {
     /// Maintain the number of keys added to the map. It is not sufficient to just use the HashMap
     /// len, as it does not increase when duplicate keys are added. Duplicate keys are used during

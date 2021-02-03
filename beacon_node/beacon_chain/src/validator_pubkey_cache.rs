@@ -1,4 +1,5 @@
 use crate::errors::BeaconChainError;
+use mem_util_derive::*;
 use ssz::{Decode, DecodeError, Encode};
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -18,9 +19,11 @@ use types::{BeaconState, EthSpec, PublicKey, PublicKeyBytes, Validator};
 ///
 /// The cache has a `persistence_file` that it uses to maintain a persistent, on-disk
 /// copy of itself. This allows it to be restored between process invocations.
+#[derive(MallocSizeOf)]
 pub struct ValidatorPubkeyCache {
     pubkeys: Vec<PublicKey>,
     indices: HashMap<PublicKeyBytes, usize>,
+    #[ignore_malloc_size_of ="TODO"]
     persitence_file: ValidatorPubkeyCacheFile,
 }
 

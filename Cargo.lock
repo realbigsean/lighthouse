@@ -1013,6 +1013,8 @@ dependencies = [
  "eth2_ssz_derive",
  "eth2_ssz_types",
  "ethereum-types",
+ "mem-util",
+ "mem-util-derive",
  "quickcheck",
  "quickcheck_macros",
  "smallvec",

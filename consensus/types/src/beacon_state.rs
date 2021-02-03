@@ -7,6 +7,7 @@ use cached_tree_hash::{CacheArena, CachedTreeHash};
 use compare_fields_derive::CompareFields;
 use eth2_hashing::hash;
 use int_to_bytes::{int_to_bytes4, int_to_bytes8};
+use mem_util_derive::*;
 use pubkey_cache::PubkeyCache;
 use safe_arith::{ArithError, SafeArith};
 use serde_derive::{Deserialize, Serialize};
@@ -150,6 +151,7 @@ impl From<BeaconStateHash> for Hash256 {
     Decode,
     TreeHash,
     CompareFields,
+    MallocSizeOf,
 )]
 #[serde(bound = "T: EthSpec")]
 pub struct BeaconState<T>

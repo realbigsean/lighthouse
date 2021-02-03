@@ -3,6 +3,7 @@
 use super::Error;
 use crate::{BeaconState, EthSpec, Hash256, Slot, Unsigned, Validator};
 use cached_tree_hash::{int_log, CacheArena, CachedTreeHash, TreeHashCache};
+use mem_util_derive::*;
 use rayon::prelude::*;
 use ssz_derive::{Decode, Encode};
 use ssz_types::VariableList;
@@ -24,7 +25,7 @@ const NODES_PER_VALIDATOR: usize = 15;
 /// Do not set to 0.
 const VALIDATORS_PER_ARENA: usize = 4_096;
 
-#[derive(Debug, PartialEq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Encode, Decode, MallocSizeOf)]
 pub struct Eth1DataVotesTreeHashCache<T: EthSpec> {
     arena: CacheArena,
     tree_hash_cache: TreeHashCache,
@@ -79,7 +80,7 @@ impl<T: EthSpec> Eth1DataVotesTreeHashCache<T> {
 }
 
 /// A cache that performs a caching tree hash of the entire `BeaconState` struct.
-#[derive(Debug, PartialEq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Encode, Decode, MallocSizeOf)]
 pub struct BeaconTreeHashCache<T: EthSpec> {
     /// Tracks the previously generated state root to ensure the next state root provided descends
     /// directly from this state.
@@ -257,7 +258,7 @@ impl<T: EthSpec> BeaconTreeHashCache<T> {
 }
 
 /// A specialized cache for computing the tree hash root of `state.validators`.
-#[derive(Debug, PartialEq, Clone, Default, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Default, Encode, Decode, MallocSizeOf)]
 struct ValidatorsListTreeHashCache {
     list_arena: CacheArena,
     list_cache: TreeHashCache,
@@ -332,7 +333,7 @@ impl<V, I: Iterator<Item = V>> ExactSizeIterator for ForcedExactSizeIterator<I> 
 
 /// Provides a cache for each of the `Validator` objects in `state.validators` and computes the
 /// roots of these using Rayon parallelization.
-#[derive(Debug, PartialEq, Clone, Default, Encode, Decode)]
+#[derive(Debug, PartialEq, Clone, Default, Encode, Decode, MallocSizeOf)]
 pub struct ParallelValidatorTreeHash {
     /// Each arena and its associated sub-trees.
     arenas: Vec<(CacheArena, Vec<TreeHashCache>)>,

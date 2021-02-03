@@ -42,7 +42,7 @@ arbitrary = { version = "0.4.6", features = ["derive"], optional = true }
 serde_utils = { path = "../serde_utils" }
 regex = "1.3.9"
 lazy_static = "1.4.0"
-mem-util = {path = "../mem_util"}
+mem-util = {path = "../mem_util", default-features = true }
 mem-util-derive = {path = "../mem_util_derive"}
 
 [dev-dependencies]

@@ -1,6 +1,7 @@
 //! Provides the `ObservedBlockProducers` struct which allows for rejecting gossip blocks from
 //! validators that have already produced a block.
 
+use mem_util_derive::*;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use types::{BeaconBlock, EthSpec, Slot, Unsigned};
@@ -25,6 +26,7 @@ pub enum Error {
 /// blocks reduces the theoretical maximum size of this cache to `slots_since_finality *
 /// active_validator_count`, however in reality that is more like `slots_since_finality *
 /// known_distinct_shufflings` which is much smaller.
+#[derive(MallocSizeOf)]
 pub struct ObservedBlockProducers<E: EthSpec> {
     finalized_slot: Slot,
     items: HashMap<Slot, HashSet<u64>>,
