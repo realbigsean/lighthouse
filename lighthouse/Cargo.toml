@@ -41,6 +41,7 @@ directory = { path = "../common/directory" }
 lighthouse_version = { path = "../common/lighthouse_version" }
 account_utils = { path = "../common/account_utils" }
 remote_signer = { "path" = "../remote_signer" }
+mem-util = {path = "../consensus/mem_util", default-features = true }
 
 [dev-dependencies]
 tempfile = "3.1.0"

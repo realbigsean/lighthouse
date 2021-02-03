@@ -44,3 +44,5 @@ hyper = "0.14.2"
 lighthouse_version = { path = "../common/lighthouse_version" }
 hex = "0.4.2"
 slasher = { path = "../slasher" }
+mem-util = {path = "../consensus/mem_util", default-features = true }
+

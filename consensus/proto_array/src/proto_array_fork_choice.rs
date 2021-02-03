@@ -1,6 +1,7 @@
 use crate::error::Error;
 use crate::proto_array::ProtoArray;
 use crate::ssz_container::SszContainer;
+use mem_util_derive::*;
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
 use std::collections::HashMap;
@@ -8,7 +9,7 @@ use types::{Epoch, Hash256, ShufflingId, Slot};
 
 pub const DEFAULT_PRUNE_THRESHOLD: usize = 256;
 
-#[derive(Default, PartialEq, Clone, Encode, Decode)]
+#[derive(Default, PartialEq, Clone, Encode, Decode, MallocSizeOf)]
 pub struct VoteTracker {
     current_root: Hash256,
     next_root: Hash256,
@@ -35,7 +36,7 @@ pub struct Block {
 ///
 /// E.g., a `get` or `insert` to an out-of-bounds element will cause the Vec to grow (using
 /// Default) to the smallest size required to fulfill the request.
-#[derive(Default, Clone, Debug, PartialEq)]
+#[derive(Default, Clone, Debug, PartialEq, MallocSizeOf)]
 pub struct ElasticList<T>(pub Vec<T>);
 
 impl<T> ElasticList<T>
@@ -58,7 +59,7 @@ where
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, MallocSizeOf)]
 pub struct ProtoArrayForkChoice {
     pub(crate) proto_array: ProtoArray,
     pub(crate) votes: ElasticList<VoteTracker>,

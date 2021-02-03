@@ -22,6 +22,7 @@ use block_id::BlockId;
 use eth2::types::{self as api_types, ValidatorId};
 use eth2_libp2p::{types::SyncState, EnrExt, NetworkGlobals, PeerId, PubsubMessage};
 use lighthouse_version::version_with_platform;
+use mem_util::{MallocSizeOf, MallocSizeOfExt};
 use network::NetworkMessage;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -213,7 +214,7 @@ pub fn prometheus_metrics() -> warp::filters::log::Log<impl Fn(warp::filters::lo
 pub fn serve<T: BeaconChainTypes>(
     ctx: Arc<Context<T>>,
     shutdown: impl Future<Output = ()> + Send + Sync + 'static,
-) -> Result<(SocketAddr, impl Future<Output = ()>), Error> {
+) -> Result<(SocketAddr, impl Future<Output = ()>), Error> where <T as BeaconChainTypes>::EthSpec: MallocSizeOf, <T as BeaconChainTypes>::ColdStore: MallocSizeOf, <T as BeaconChainTypes>::HotStore: MallocSizeOf {
     let config = ctx.config.clone();
     let log = ctx.log.clone();
 
@@ -2422,7 +2423,22 @@ pub fn serve<T: BeaconChainTypes>(
         .and_then(|chain: Arc<BeaconChain<T>>| {
             blocking_json_task(move || {
                 Ok(api_types::GenericResponse::from(api_types::Memory {
-                    shuffling_cache: chain.get_shuffling_malloc_size(),
+                    observed_attestations: chain.get_observed_attestations(),
+                    observed_attesters: chain.get_observed_attesters(),
+                    observed_aggregators: chain.get_observed_aggregators(),
+                    observed_block_producers: chain.get_observed_block_producers(),
+                    observed_voluntary_exits: chain.get_observed_voluntary_exits(),
+                    observed_proposer_slashings: chain.get_observed_proposer_slashings(),
+                    observed_attester_slashings: chain.get_observed_attester_slashings(),
+                    canonical_head: chain.get_canonical_head(),
+                    head_tracker: chain.get_head_tracker(),
+                    snapshot_cache: chain.get_snapshot_cache(),
+                    shuffling_cache: chain.get_shuffling_cache(),
+                    validator_pubkey_cache: chain.get_validator_pubkey_cache(),
+                    hot_cold_db: chain.get_hot_cold(),
+                    op_pool: chain.op_pool.malloc_size_of(),
+                    naive_aggregation_op_pool: chain.naive_aggregation_pool.malloc_size_of(),
+                    // fork_choice: chain.get_fork_choice(),
                 }))
             })
         });

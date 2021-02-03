@@ -8,6 +8,7 @@ use ssz_types::typenum::{
 };
 use std::fmt::{self, Debug};
 use std::str::FromStr;
+use mem_util::{MallocSizeOf, MallocSizeOfOps};
 
 const MAINNET: &str = "mainnet";
 const MINIMAL: &str = "minimal";
@@ -187,6 +188,13 @@ macro_rules! params_from_eth_spec {
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
 #[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub struct MainnetEthSpec;
+
+impl MallocSizeOf for MainnetEthSpec {
+    fn size_of(&self, _: &mut MallocSizeOfOps) -> usize {
+        0
+    }
+    fn constant_size() -> Option<usize> { Some(0) }
+}
 
 impl EthSpec for MainnetEthSpec {
     type JustificationBitsLength = U4;

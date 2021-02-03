@@ -29,7 +29,8 @@ slot_clock = { path = "../../common/slot_clock" }
 eth2_ssz = { path = "../../consensus/ssz" }
 bs58 = "0.4.0"
 futures = "0.3.8"
-
+mem-util = {path = "../../consensus/mem_util", default-features = true }
+mem-util-derive = { path = "../../consensus/mem_util_derive"}
 [dev-dependencies]
 store = { path = "../store" }
 environment = { path = "../../lighthouse/environment" }

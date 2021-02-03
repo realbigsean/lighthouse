@@ -1,10 +1,11 @@
 use crate::{error::Error, Block};
+use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use std::collections::HashMap;
 use types::{Epoch, Hash256, ShufflingId, Slot};
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Serialize, Deserialize, MallocSizeOf)]
 pub struct ProtoNode {
     /// The `slot` is not necessary for `ProtoArray`, it just exists so external components can
     /// easily query the block slot. This is useful for upstream fork choice logic.
@@ -29,7 +30,7 @@ pub struct ProtoNode {
     best_descendant: Option<usize>,
 }
 
-#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone, MallocSizeOf)]
 pub struct ProtoArray {
     /// Do not attempt to prune the tree unless it has at least this many nodes. Small prunes
     /// simply waste time.

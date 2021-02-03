@@ -8,12 +8,15 @@ use leveldb::database::Database;
 use leveldb::error::Error as LevelDBError;
 use leveldb::iterator::{Iterable, KeyIterator};
 use leveldb::options::{Options, ReadOptions, WriteOptions};
+use mem_util_derive::*;
 use parking_lot::{Mutex, MutexGuard};
 use std::marker::PhantomData;
 use std::path::Path;
 
 /// A wrapped leveldb database.
+#[derive(MallocSizeOf)]
 pub struct LevelDB<E: EthSpec> {
+    #[ignore_malloc_size_of ="TODO"]
     db: Database<BytesKey>,
     /// A mutex to synchronise sensitive read-write transactions.
     transaction_mutex: Mutex<()>,

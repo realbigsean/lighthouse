@@ -11,6 +11,8 @@ types = { path = "../types" }
 proto_array = { path = "../proto_array" }
 eth2_ssz = "0.1.2"
 eth2_ssz_derive = "0.1.0"
+mem-util = {path = "../mem_util", default-features = true }
+mem-util-derive = {path = "../mem_util_derive"}
 
 [dev-dependencies]
 state_processing = { path = "../../consensus/state_processing" }

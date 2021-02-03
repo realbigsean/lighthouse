@@ -50,7 +50,9 @@ pub trait Item {
 }
 
 /// Stores a `BitVec` that represents which validator indices have attested during an epoch.
+#[derive(MallocSizeOf)]
 pub struct EpochBitfield {
+    #[ignore_malloc_size_of ="TODO"]
     bitfield: BitVec,
 }
 
@@ -102,6 +104,7 @@ impl Item for EpochBitfield {
 
 /// Stores a `HashSet` of which validator indices have created an aggregate attestation during an
 /// epoch.
+#[derive(MallocSizeOf)]
 pub struct EpochHashSet {
     set: HashSet<usize>,
 }

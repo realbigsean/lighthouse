@@ -1,3 +1,4 @@
+use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz::ssz_encode;
 use ssz_derive::{Decode, Encode};
@@ -5,7 +6,7 @@ use types::{AttestationData, ChainSpec, Domain, Epoch, Fork, Hash256};
 
 /// Serialized `AttestationData` augmented with a domain to encode the fork info.
 #[derive(
-    PartialEq, Eq, Clone, Hash, Debug, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize,
+    PartialEq, Eq, Clone, Hash, Debug, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize, MallocSizeOf
 )]
 pub struct AttestationId {
     v: Vec<u8>,

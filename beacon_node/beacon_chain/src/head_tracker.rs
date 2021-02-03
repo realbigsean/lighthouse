@@ -1,4 +1,5 @@
 use parking_lot::RwLock;
+use mem_util_derive::*;
 use ssz_derive::{Decode, Encode};
 use std::collections::HashMap;
 use types::{Hash256, Slot};
@@ -13,7 +14,7 @@ pub enum Error {
 /// Each time a new block is imported, it should be applied to the `Self::register_block` function.
 /// In order for this struct to be effective, every single block that is imported must be
 /// registered here.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, MallocSizeOf)]
 pub struct HeadTracker(pub RwLock<HashMap<Hash256, Slot>>);
 
 impl HeadTracker {

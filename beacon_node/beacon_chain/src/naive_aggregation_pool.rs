@@ -1,4 +1,5 @@
 use crate::metrics;
+use mem_util_derive::*;
 use std::collections::HashMap;
 use tree_hash::TreeHash;
 use types::{Attestation, AttestationData, EthSpec, Hash256, Slot};
@@ -54,6 +55,7 @@ pub enum Error {
 
 /// A collection of `Attestation` objects, keyed by their `attestation.data`. Enforces that all
 /// `attestation` are from the same slot.
+#[derive(MallocSizeOf)]
 struct AggregatedAttestationMap<E: EthSpec> {
     map: HashMap<AttestationDataRoot, Attestation<E>>,
 }
@@ -159,6 +161,7 @@ impl<E: EthSpec> AggregatedAttestationMap<E> {
 /// `current_slot - SLOTS_RETAINED` will be removed and any future attestation with a slot lower
 /// than that will also be refused. Pruning is done automatically based upon the attestations it
 /// receives and it can be triggered manually.
+#[derive(MallocSizeOf)]
 pub struct NaiveAggregationPool<E: EthSpec> {
     lowest_permissible_slot: Slot,
     maps: HashMap<Slot, AggregatedAttestationMap<E>>,

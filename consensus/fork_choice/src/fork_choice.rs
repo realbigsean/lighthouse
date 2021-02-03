@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use mem_util_derive::*;
 use proto_array::{Block as ProtoBlock, ProtoArrayForkChoice};
 use ssz_derive::{Decode, Encode};
 use types::{
@@ -165,7 +166,7 @@ where
 
 /// Used for queuing attestations from the current slot. Only contains the minimum necessary
 /// information about the attestation.
-#[derive(Clone, PartialEq, Encode, Decode)]
+#[derive(Clone, PartialEq, Encode, Decode, MallocSizeOf)]
 pub struct QueuedAttestation {
     slot: Slot,
     attesting_indices: Vec<u64>,
@@ -210,6 +211,7 @@ fn dequeue_attestations(
 ///
 /// - Management of the justified state and caching of balances.
 /// - Queuing of attestations from the current slot.
+#[derive(MallocSizeOf)]
 pub struct ForkChoice<T, E> {
     /// Storage for `ForkChoice`, modelled off the spec `Store` object.
     fc_store: T,

@@ -811,8 +811,29 @@ impl FromStr for Accept {
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct Memory {
+    pub observed_attestations: usize,
+    pub observed_attesters: usize,
+    pub observed_aggregators: usize,
+    pub observed_block_producers: usize,
+    pub observed_voluntary_exits: usize,
+    pub observed_proposer_slashings: usize,
+    pub observed_attester_slashings: usize,
+    pub canonical_head: usize,
+    pub head_tracker: usize,
+    pub snapshot_cache: usize,
     pub shuffling_cache: usize,
+    pub validator_pubkey_cache: usize,
+    pub hot_cold_db: usize,
+    pub op_pool: usize,
+    pub naive_aggregation_op_pool: usize,
+    // pub fork_choice: usize,
 }
+
+// impl Memory {
+//     pub fn get_total(&self) -> usize{
+//
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

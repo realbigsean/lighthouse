@@ -185,7 +185,7 @@ fn main() {
     }
 }
 
-fn run<E: EthSpec>(
+fn run<E: EthSpec + mem_util::MallocSizeOf>(
     environment_builder: EnvironmentBuilder<E>,
     matches: &ArgMatches,
     testnet_config: Eth2NetworkConfig,
