@@ -19,6 +19,7 @@ use crate::{
 };
 use leveldb::iterator::LevelDBIterator;
 use lru::LruCache;
+use mem_util_derive::*;
 use parking_lot::{Mutex, RwLock};
 use slog::{debug, error, info, trace, warn, Logger};
 use ssz::{Decode, Encode};
@@ -48,7 +49,7 @@ pub enum BlockReplay {
 ///
 /// Stores vector fields like the `block_roots` and `state_roots` separately, and only stores
 /// intermittent "restore point" states pre-finalization.
-#[derive(Debug)]
+#[derive(Debug, MallocSizeOf)]
 pub struct HotColdDB<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> {
     /// The slot and state root at the point where the database is split between hot and cold.
     ///
@@ -67,6 +68,7 @@ pub struct HotColdDB<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> {
     /// Chain spec.
     spec: ChainSpec,
     /// Logger.
+    #[ignore_malloc_size_of ="TODO"]
     pub(crate) log: Logger,
     /// Mere vessel for E.
     _phantom: PhantomData<E>,
@@ -1097,7 +1099,7 @@ pub fn migrate_database<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>(
 }
 
 /// Struct for storing the split slot and state root in the database.
-#[derive(Debug, Clone, Copy, Default, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Default, Encode, Decode, MallocSizeOf)]
 pub struct Split {
     slot: Slot,
     state_root: Hash256,

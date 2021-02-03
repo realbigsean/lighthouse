@@ -1,5 +1,6 @@
 use crate::*;
 use int_to_bytes::int_to_bytes4;
+use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use std::fs::File;
 use std::path::Path;
@@ -23,7 +24,7 @@ pub enum Domain {
 ///
 /// Spec v0.12.1
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, MallocSizeOf)]
 pub struct ChainSpec {
     /*
      * Constants

@@ -1,6 +1,7 @@
 use crate::test_utils::TestRandom;
 use crate::*;
 
+use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use ssz_types::VariableList;
@@ -11,7 +12,7 @@ use tree_hash_derive::TreeHash;
 ///
 /// Spec v0.12.1
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom, MallocSizeOf)]
 #[serde(bound = "T: EthSpec")]
 pub struct BeaconBlockBody<T: EthSpec> {
     pub randao_reveal: Signature,

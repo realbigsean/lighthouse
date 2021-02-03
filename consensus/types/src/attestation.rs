@@ -3,6 +3,7 @@ use super::{
     SignedRoot,
 };
 use crate::{test_utils::TestRandom, Hash256};
+use mem_util_derive::*;
 use safe_arith::ArithError;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -20,7 +21,7 @@ pub enum Error {
 ///
 /// Spec v0.12.1
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom, MallocSizeOf)]
 #[serde(bound = "T: EthSpec")]
 pub struct Attestation<T: EthSpec> {
     pub aggregation_bits: BitList<T::MaxValidatorsPerCommittee>,

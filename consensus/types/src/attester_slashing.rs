@@ -1,6 +1,7 @@
 use crate::{test_utils::TestRandom, EthSpec, IndexedAttestation};
 
 use derivative::Derivative;
+use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use test_random_derive::TestRandom;
@@ -10,7 +11,7 @@ use tree_hash_derive::TreeHash;
 ///
 /// Spec v0.12.1
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(Derivative, Debug, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom)]
+#[derive(Derivative, Debug, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom, MallocSizeOf)]
 #[derivative(PartialEq, Eq, Hash(bound = "T: EthSpec"))]
 #[serde(bound = "T: EthSpec")]
 pub struct AttesterSlashing<T: EthSpec> {

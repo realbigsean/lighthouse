@@ -2,6 +2,7 @@ use crate::{
     test_utils::{RngCore, TestRandom},
     Hash256,
 };
+use mem_util_derive::*;
 use regex::bytes::Regex;
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 use ssz::{Decode, DecodeError, Encode};
@@ -11,7 +12,7 @@ use tree_hash::TreeHash;
 pub const GRAFFITI_BYTES_LEN: usize = 32;
 
 /// The 32-byte `graffiti` field on a beacon block.
-#[derive(Default, Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Default, Debug, PartialEq, Clone, Copy, Serialize, Deserialize, MallocSizeOf)]
 #[serde(transparent)]
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
 pub struct Graffiti(#[serde(with = "serde_graffiti")] pub [u8; GRAFFITI_BYTES_LEN]);

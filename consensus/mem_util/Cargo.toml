@@ -18,6 +18,9 @@ libmimalloc-sys = { version = "0.1.14", optional = true }
 impl-trait-for-tuples = "0.2.0"
 ethereum-types = "0.9.2"
 primitive-types = "0.9"
+bls = { path = "../../crypto/bls" }
+typenum = "1.12.0"
+eth2_ssz_types = { path = "../ssz_types" }
 
 smallvec = { version = "1.0.0", optional = true }
 parking_lot = { version = "0.11.1", optional = true }

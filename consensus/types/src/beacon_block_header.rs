@@ -1,6 +1,7 @@
 use crate::test_utils::TestRandom;
 use crate::*;
 
+use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use test_random_derive::TestRandom;
@@ -12,7 +13,7 @@ use tree_hash_derive::TreeHash;
 /// Spec v0.12.1
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
 #[derive(
-    Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom,
+    Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom, MallocSizeOf
 )]
 pub struct BeaconBlockHeader {
     pub slot: Slot,
