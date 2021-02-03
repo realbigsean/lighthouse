@@ -41,6 +41,8 @@ rand = "0.7.3"
 directory = { path = "../../common/directory" }
 regex = "1.3.9"
 strum = { version = "0.20", features = ["derive"] }
+mem-util = {path = "../../consensus/mem_util", default-features = true }
+mem-util-derive = {path = "../../consensus/mem_util_derive" }
 
 [dependencies.libp2p]
 version = "0.34.0"

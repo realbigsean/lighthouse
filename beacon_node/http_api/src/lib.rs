@@ -2184,7 +2184,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path("peers"))
         .and(warp::path("connected"))
         .and(warp::path::end())
-        .and(network_globals)
+        .and(network_globals.clone())
         .and_then(|network_globals: Arc<NetworkGlobals<T::EthSpec>>| {
             blocking_json_task(move || {
                 Ok(network_globals
@@ -2420,7 +2420,8 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path("memory"))
         .and(warp::path::end())
         .and(chain_filter.clone())
-        .and_then(|chain: Arc<BeaconChain<T>>| {
+        .and(network_globals)
+        .and_then(|chain: Arc<BeaconChain<T>>, network_globals: Arc<NetworkGlobals<T::EthSpec>>| {
             blocking_json_task(move || {
                 Ok(api_types::GenericResponse::from(api_types::Memory {
                     observed_attestations: chain.get_observed_attestations(),
@@ -2438,6 +2439,7 @@ pub fn serve<T: BeaconChainTypes>(
                     hot_cold_db: chain.get_hot_cold(),
                     op_pool: chain.op_pool.malloc_size_of(),
                     naive_aggregation_op_pool: chain.naive_aggregation_pool.malloc_size_of(),
+                    network_globals: network_globals.malloc_size_of(),
                     // fork_choice: chain.get_fork_choice(),
                 }))
             })

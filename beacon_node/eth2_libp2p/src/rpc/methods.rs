@@ -2,6 +2,7 @@
 
 use crate::types::EnrBitfield;
 use regex::bytes::Regex;
+use mem_util_derive::*;
 use serde::Serialize;
 use ssz_derive::{Decode, Encode};
 use ssz_types::{
@@ -93,7 +94,7 @@ pub struct Ping {
 }
 
 /// The METADATA response structure.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Serialize)]
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Serialize, MallocSizeOf)]
 #[serde(bound = "T: EthSpec")]
 pub struct MetaData<T: EthSpec> {
     /// A sequential counter indicating when data gets modified.

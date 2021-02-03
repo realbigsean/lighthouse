@@ -1,5 +1,6 @@
 //! Identifies each shard by an integer identifier.
 use crate::{AttestationData, ChainSpec, CommitteeIndex, EthSpec, Slot};
+use mem_util_derive::*;
 use safe_arith::{ArithError, SafeArith};
 use serde_derive::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
@@ -18,7 +19,7 @@ lazy_static! {
 }
 
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, MallocSizeOf)]
 #[serde(transparent)]
 pub struct SubnetId(#[serde(with = "serde_utils::quoted_u64")] u64);
 

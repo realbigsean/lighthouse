@@ -5,11 +5,13 @@ use crate::types::SyncState;
 use crate::Client;
 use crate::EnrExt;
 use crate::{Enr, GossipTopic, Multiaddr, PeerId};
+use mem_util_derive::*;
 use parking_lot::RwLock;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU16, Ordering};
 use types::EthSpec;
 
+#[derive(MallocSizeOf)]
 pub struct NetworkGlobals<TSpec: EthSpec> {
     /// The current local ENR.
     pub local_enr: RwLock<Enr>,
@@ -18,16 +20,20 @@ pub struct NetworkGlobals<TSpec: EthSpec> {
     /// Listening multiaddrs.
     pub listen_multiaddrs: RwLock<Vec<Multiaddr>>,
     /// The TCP port that the libp2p service is listening on
+    #[ignore_malloc_size_of ="TODO"]
     pub listen_port_tcp: AtomicU16,
     /// The UDP port that the discovery service is listening on
+    #[ignore_malloc_size_of ="TODO"]
     pub listen_port_udp: AtomicU16,
     /// The collection of known peers.
     pub peers: RwLock<PeerDB<TSpec>>,
     // The local meta data of our node.
+    #[ignore_malloc_size_of ="TODO"]
     pub local_metadata: RwLock<MetaData<TSpec>>,
     /// The current gossipsub topic subscriptions.
     pub gossipsub_subscriptions: RwLock<HashSet<GossipTopic>>,
     /// The current sync status of the node.
+    #[ignore_malloc_size_of ="TODO"]
     pub sync_state: RwLock<SyncState>,
 }
 

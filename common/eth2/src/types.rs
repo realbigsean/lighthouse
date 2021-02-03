@@ -826,6 +826,7 @@ pub struct Memory {
     pub hot_cold_db: usize,
     pub op_pool: usize,
     pub naive_aggregation_op_pool: usize,
+    pub network_globals: usize,
     // pub fork_choice: usize,
 }
 

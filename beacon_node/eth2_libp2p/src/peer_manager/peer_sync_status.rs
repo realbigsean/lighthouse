@@ -1,9 +1,10 @@
 //! Handles individual sync status for peers.
 
+use mem_util_derive::*;
 use serde::Serialize;
 use types::{Epoch, Hash256, Slot};
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, MallocSizeOf)]
 /// The current sync status of the peer.
 pub enum PeerSyncStatus {
     /// At the current state as our node or ahead of us.
@@ -19,7 +20,7 @@ pub enum PeerSyncStatus {
 }
 
 /// A relevant peer's sync information.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, MallocSizeOf)]
 pub struct SyncInfo {
     pub head_slot: Slot,
     pub head_root: Hash256,
