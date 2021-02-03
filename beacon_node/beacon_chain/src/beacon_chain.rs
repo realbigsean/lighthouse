@@ -34,6 +34,7 @@ use eth2::types::{EventKind, SseBlock, SseFinalizedCheckpoint, SseHead};
 use fork_choice::ForkChoice;
 use futures::channel::mpsc::Sender;
 use itertools::process_results;
+use mem_util::MallocSizeOfExt;
 use operation_pool::{OperationPool, PersistedOperationPool};
 use parking_lot::{Mutex, RwLock};
 use slasher::Slasher;
@@ -2611,6 +2612,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     pub fn dump_dot_file(&self, file_name: &str) {
         let mut file = std::fs::File::create(file_name).unwrap();
         self.dump_as_dot(&mut file);
+    }
+
+    pub fn get_shuffling_malloc_size(&self) -> usize {
+        self.shuffling_cache.malloc_size_of()
     }
 }
 

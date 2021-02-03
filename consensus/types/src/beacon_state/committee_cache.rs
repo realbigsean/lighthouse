@@ -3,6 +3,7 @@
 use super::BeaconState;
 use crate::*;
 use core::num::NonZeroUsize;
+use mem_util_derive::*;
 use safe_arith::SafeArith;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -13,7 +14,7 @@ mod tests;
 
 /// Computes and stores the shuffling for an epoch. Provides various getters to allow callers to
 /// read the committees for the given epoch.
-#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, MallocSizeOf)]
 pub struct CommitteeCache {
     initialized_epoch: Option<Epoch>,
     shuffling: Vec<usize>,

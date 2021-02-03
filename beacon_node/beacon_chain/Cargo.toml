@@ -62,3 +62,5 @@ exit-future = "0.2.0"
 slasher = { path = "../../slasher" }
 eth2 = { path = "../../common/eth2" }
 strum = { version = "0.20", features = ["derive"] }
+mem-util = { path = "../../consensus/mem_util", default-features = true }
+mem-util-derive = { path = "../../consensus/mem_util_derive" }

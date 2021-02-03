@@ -1,0 +1,15 @@
+[package]
+name = "mem-util-derive"
+version = "0.1.0"
+authors = ["realbigsean <seananderson33@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "mem_util_derive"
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+syn = { version = "1", features = ["full"] }
+synstructure = "0.12"
+mem-util = {path = "../mem_util"}

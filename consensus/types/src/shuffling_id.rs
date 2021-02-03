@@ -1,4 +1,5 @@
 use crate::*;
+use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use std::hash::Hash;
@@ -14,7 +15,7 @@ use std::hash::Hash;
 /// final block which contributed a randao reveal to the seed for the shuffling.
 ///
 /// The struct stores exactly that 2-tuple.
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, Encode, Decode, MallocSizeOf)]
 pub struct ShufflingId {
     pub shuffling_epoch: Epoch,
     shuffling_decision_block: Hash256,

@@ -2360,7 +2360,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path("events"))
         .and(warp::path::end())
         .and(warp::query::<api_types::EventQuery>())
-        .and(chain_filter)
+        .and(chain_filter.clone())
         .and_then(
             |topics: api_types::EventQuery, chain: Arc<BeaconChain<T>>| {
                 blocking_task(move || {
@@ -2414,6 +2414,20 @@ pub fn serve<T: BeaconChainTypes>(
             },
         );
 
+    // GET lighthouse/memory
+    let get_lighthouse_memory = warp::path("lighthouse")
+        .and(warp::path("memory"))
+        .and(warp::path::end())
+        .and(chain_filter.clone())
+        .and_then(|chain: Arc<BeaconChain<T>>| {
+            blocking_json_task(move || {
+                Ok(api_types::GenericResponse::from(api_types::Memory {
+                    shuffling_cache: chain.get_shuffling_malloc_size(),
+                }))
+            })
+        });
+
+
     // Define the ultimate set of routes that will be provided to the server.
     let routes = warp::get()
         .and(
@@ -2463,7 +2477,8 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_lighthouse_eth1_deposit_cache.boxed())
                 .or(get_lighthouse_beacon_states_ssz.boxed())
                 .or(get_lighthouse_staking.boxed())
-                .or(get_events.boxed()),
+                .or(get_events.boxed())
+                .or(get_lighthouse_memory.boxed()),
         )
         .or(warp::post().and(
             post_beacon_blocks

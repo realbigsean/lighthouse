@@ -1,0 +1,44 @@
+[package]
+name = "mem-util"
+version = "0.1.0"
+authors = ["realbigsean <seananderson33@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "mem_util"
+
+[dependencies]
+cfg-if = "1.0.0"
+dlmalloc = { version = "0.2.1", features = ["global"], optional = true }
+wee_alloc = { version = "0.4.5", optional = true }
+lru = { version = "0.6", optional = true }
+hashbrown = { version = "0.9", optional = true }
+mimalloc = { version = "0.1.18", optional = true }
+libmimalloc-sys = { version = "0.1.14", optional = true }
+impl-trait-for-tuples = "0.2.0"
+ethereum-types = "0.9.2"
+primitive-types = "0.9"
+
+smallvec = { version = "1.0.0", optional = true }
+parking_lot = { version = "0.11.1", optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { version = "0.3.8", features = ["heapapi"] }
+
+[target.'cfg(not(target_os = "windows"))'.dependencies.jemallocator]
+version = "0.3.2"
+optional = true
+
+[features]
+default = ["std", "lru", "hashbrown", "smallvec"]
+std = ["parking_lot"]
+# use dlmalloc as global allocator
+dlmalloc-global = ["dlmalloc", "estimate-heapsize"]
+# use wee_alloc as global allocator
+weealloc-global = ["wee_alloc", "estimate-heapsize"]
+# use jemalloc as global allocator
+jemalloc-global = ["jemallocator"]
+# use mimalloc as global allocator
+mimalloc-global = ["mimalloc", "libmimalloc-sys"]
+# Full estimate: no call to allocator
+estimate-heapsize = []

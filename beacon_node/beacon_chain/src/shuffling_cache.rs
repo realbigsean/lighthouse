@@ -1,5 +1,6 @@
 use crate::metrics;
 use lru::LruCache;
+use mem_util_derive::*;
 use types::{beacon_state::CommitteeCache, Epoch, Hash256, ShufflingId};
 
 /// The size of the LRU cache that stores committee caches for quicker verification.
@@ -13,6 +14,7 @@ const CACHE_SIZE: usize = 16;
 ///
 /// It has been named `ShufflingCache` because `CommitteeCacheCache` is a bit weird and looks like
 /// a find/replace error.
+#[derive(MallocSizeOf)]
 pub struct ShufflingCache {
     cache: LruCache<ShufflingId, CommitteeCache>,
 }

@@ -809,6 +809,11 @@ impl FromStr for Accept {
     }
 }
 
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+pub struct Memory {
+    pub shuffling_cache: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
