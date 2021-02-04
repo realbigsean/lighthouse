@@ -1,4 +1,5 @@
 use crate::{DBColumn, Error, StoreItem};
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz::{Decode, Encode};
@@ -9,7 +10,8 @@ pub const DEFAULT_SLOTS_PER_RESTORE_POINT: u64 = 2048;
 pub const DEFAULT_BLOCK_CACHE_SIZE: usize = 5;
 
 /// Database configuration parameters.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, MallocSizeOf)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct StoreConfig {
     /// Number of slots to wait between storing restore points in the freezer database.
     pub slots_per_restore_point: u64,

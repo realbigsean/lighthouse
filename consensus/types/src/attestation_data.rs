@@ -1,6 +1,7 @@
 use crate::test_utils::TestRandom;
 use crate::{Checkpoint, Hash256, SignedRoot, Slot};
 
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -24,8 +25,8 @@ use tree_hash_derive::TreeHash;
     TreeHash,
     TestRandom,
     Default,
-    MallocSizeOf,
-)]
+    )]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct AttestationData {
     pub slot: Slot,
     #[serde(with = "serde_utils::quoted_u64")]

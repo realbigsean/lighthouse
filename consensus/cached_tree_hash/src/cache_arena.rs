@@ -1,4 +1,5 @@
 use crate::SmallVec8;
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
@@ -21,7 +22,8 @@ pub enum Error {
 ///
 /// Because all of the allocations are stored in one big `Vec`, resizing any of the allocations
 /// will mean all items to the right of that allocation will be moved.
-#[derive(Debug, PartialEq, Clone, Default, Encode, Decode, MallocSizeOf)]
+#[derive(Debug, PartialEq, Clone, Default, Encode, Decode)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct CacheArena<T: Encode + Decode> {
     /// The backing array, storing cached values.
     backing: Vec<T>,
@@ -200,7 +202,8 @@ impl<T: Encode + Decode> CacheArena<T> {
 /// For all functions that accept a `CacheArena<T>` parameter, that arena should always be the one
 /// that created `Self`. I.e., do not mix-and-match allocations and arenas unless you _really_ know
 /// what you're doing (or want to have a bad time).
-#[derive(Debug, PartialEq, Clone, Default, Encode, Decode, MallocSizeOf)]
+#[derive(Debug, PartialEq, Clone, Default, Encode, Decode)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct CacheArenaAllocation<T> {
     alloc_id: usize,
     #[ssz(skip_serializing)]

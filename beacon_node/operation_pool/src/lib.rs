@@ -10,6 +10,7 @@ use attestation::AttMaxCover;
 use attestation_id::AttestationId;
 use attester_slashing::AttesterSlashingMaxCover;
 use max_cover::maximum_cover;
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use parking_lot::RwLock;
 use state_processing::per_block_processing::errors::AttestationValidationError;
@@ -26,7 +27,8 @@ use types::{
     Epoch, EthSpec, Fork, ForkVersion, Hash256, ProposerSlashing, RelativeEpoch,
     SignedVoluntaryExit, Validator,
 };
-#[derive(Default, Debug, MallocSizeOf)]
+#[derive(Default, Debug)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct OperationPool<T: EthSpec + Default> {
     /// Map from attestation ID (see below) to vectors of attestations.
     attestations: RwLock<HashMap<AttestationId, Vec<Attestation<T>>>>,

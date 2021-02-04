@@ -5,13 +5,14 @@ use crate::types::SyncState;
 use crate::Client;
 use crate::EnrExt;
 use crate::{Enr, GossipTopic, Multiaddr, PeerId};
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use parking_lot::RwLock;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU16, Ordering};
 use types::EthSpec;
 
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct NetworkGlobals<TSpec: EthSpec> {
     /// The current local ENR.
     pub local_enr: RwLock<Enr>,

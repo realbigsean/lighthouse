@@ -7,6 +7,7 @@
 //!   the same epoch
 
 use bitvec::vec::BitVec;
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
@@ -50,7 +51,7 @@ pub trait Item {
 }
 
 /// Stores a `BitVec` that represents which validator indices have attested during an epoch.
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct EpochBitfield {
     #[ignore_malloc_size_of ="TODO"]
     bitfield: BitVec,
@@ -104,7 +105,7 @@ impl Item for EpochBitfield {
 
 /// Stores a `HashSet` of which validator indices have created an aggregate attestation during an
 /// epoch.
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct EpochHashSet {
     set: HashSet<usize>,
 }
@@ -150,7 +151,7 @@ impl Item for EpochHashSet {
 /// attestations with an epoch prior to `a.data.target.epoch - 32` will be cleared from the cache.
 ///
 /// `T` should be set to a `EpochBitfield` or `EpochHashSet`.
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct AutoPruningContainer<T, E: EthSpec> {
     lowest_permissible_epoch: Epoch,
     items: HashMap<Epoch, T>,

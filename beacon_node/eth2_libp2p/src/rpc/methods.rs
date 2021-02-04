@@ -2,6 +2,7 @@
 
 use crate::types::EnrBitfield;
 use regex::bytes::Regex;
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde::Serialize;
 use ssz_derive::{Decode, Encode};
@@ -94,7 +95,8 @@ pub struct Ping {
 }
 
 /// The METADATA response structure.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Serialize, MallocSizeOf)]
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Serialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 #[serde(bound = "T: EthSpec")]
 pub struct MetaData<T: EthSpec> {
     /// A sequential counter indicating when data gets modified.

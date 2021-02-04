@@ -13,6 +13,7 @@
 use crate::test_utils::TestRandom;
 use crate::SignedRoot;
 
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use rand::RngCore;
 use safe_arith::SafeArith;
@@ -26,12 +27,14 @@ use std::iter::Iterator;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, Sub, SubAssign};
 
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, MallocSizeOf)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 #[serde(transparent)]
 pub struct Slot(#[serde(with = "serde_utils::quoted_u64")] u64);
 
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, MallocSizeOf)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 #[serde(transparent)]
 pub struct Epoch(#[serde(with = "serde_utils::quoted_u64")] u64);
 

@@ -2,13 +2,15 @@
 //!
 //! Currently using identify to fingerprint.
 
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use libp2p::identify::IdentifyInfo;
 use serde::Serialize;
 use strum::{AsRefStr, AsStaticStr};
 
 /// Various client and protocol information related to a node.
-#[derive(Clone, Debug, Serialize, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct Client {
     /// The client's name (Ex: lighthouse, prism, nimbus, etc)
     pub kind: ClientKind,
@@ -22,7 +24,8 @@ pub struct Client {
     pub agent_string: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq, AsRefStr, AsStaticStr, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize, PartialEq, AsRefStr, AsStaticStr)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub enum ClientKind {
     /// A lighthouse node (the best kind).
     Lighthouse,

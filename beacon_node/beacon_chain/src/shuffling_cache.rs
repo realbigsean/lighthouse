@@ -1,5 +1,6 @@
 use crate::metrics;
 use lru::LruCache;
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use types::{beacon_state::CommitteeCache, Epoch, Hash256, ShufflingId};
 
@@ -14,7 +15,7 @@ const CACHE_SIZE: usize = 16;
 ///
 /// It has been named `ShufflingCache` because `CommitteeCacheCache` is a bit weird and looks like
 /// a find/replace error.
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct ShufflingCache {
     cache: LruCache<ShufflingId, CommitteeCache>,
 }

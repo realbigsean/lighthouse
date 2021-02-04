@@ -1,6 +1,7 @@
 use crate::test_utils::TestRandom;
 use crate::Epoch;
 
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -23,8 +24,8 @@ use tree_hash_derive::TreeHash;
     Decode,
     TreeHash,
     TestRandom,
-    MallocSizeOf,
-)]
+    )]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct Fork {
     #[serde(with = "serde_utils::bytes_4_hex")]
     pub previous_version: [u8; 4],

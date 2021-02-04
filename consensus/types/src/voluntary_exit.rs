@@ -3,6 +3,7 @@ use crate::{
     SignedVoluntaryExit,
 };
 
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -13,7 +14,8 @@ use tree_hash_derive::TreeHash;
 ///
 /// Spec v0.12.1
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom, MallocSizeOf)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct VoluntaryExit {
     /// Earliest epoch when voluntary exit can be processed.
     pub epoch: Epoch,

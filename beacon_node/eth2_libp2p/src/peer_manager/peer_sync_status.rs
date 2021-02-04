@@ -1,10 +1,12 @@
 //! Handles individual sync status for peers.
 
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde::Serialize;
 use types::{Epoch, Hash256, Slot};
 
-#[derive(Clone, Debug, Serialize, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 /// The current sync status of the peer.
 pub enum PeerSyncStatus {
     /// At the current state as our node or ahead of us.
@@ -20,7 +22,8 @@ pub enum PeerSyncStatus {
 }
 
 /// A relevant peer's sync information.
-#[derive(Clone, Debug, Serialize, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct SyncInfo {
     pub head_slot: Slot,
     pub head_root: Hash256,

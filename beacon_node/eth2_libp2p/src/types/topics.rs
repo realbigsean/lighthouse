@@ -1,4 +1,5 @@
 use libp2p::gossipsub::{IdentTopic as Topic, TopicHash};
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use strum::AsRefStr;
@@ -26,7 +27,8 @@ pub const CORE_TOPICS: [GossipKind; 5] = [
 
 /// A gossipsub topic which encapsulates the type of messages that should be sent and received over
 /// the pubsub protocol and the way the messages should be encoded.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct GossipTopic {
     /// The encoding of the topic.
     encoding: GossipEncoding,
@@ -38,7 +40,8 @@ pub struct GossipTopic {
 
 /// Enum that brings these topics into the rust type system.
 // NOTE: There is intentionally no unknown type here. We only allow known gossipsub topics.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, AsRefStr, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, AsRefStr)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 #[strum(serialize_all = "snake_case")]
 pub enum GossipKind {
     /// Topic for publishing beacon blocks.
@@ -66,7 +69,8 @@ impl std::fmt::Display for GossipKind {
 }
 
 /// The known encoding types for gossipsub messages.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub enum GossipEncoding {
     /// Messages are encoded with SSZSnappy.
     SSZSnappy,

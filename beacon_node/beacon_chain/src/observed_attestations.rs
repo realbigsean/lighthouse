@@ -1,6 +1,7 @@
 //! Provides an `ObservedAttestations` struct which allows us to reject aggregated attestations if
 //! we've already seen the aggregated attestation.
 
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use std::collections::HashSet;
 use std::marker::PhantomData;
@@ -46,7 +47,7 @@ pub enum Error {
 }
 
 /// A `HashSet` that contains entries related to some `Slot`.
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 struct SlotHashSet {
     set: HashSet<Hash256>,
     slot: Slot,
@@ -116,7 +117,7 @@ impl SlotHashSet {
 
 /// Stores the roots of `Attestation` objects for some number of `Slots`, so we can determine if
 /// these have previously been seen on the network.
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct ObservedAttestations<E: EthSpec> {
     lowest_permissible_slot: Slot,
     sets: Vec<SlotHashSet>,

@@ -14,10 +14,12 @@ use std::time::Instant;
 use strum::AsRefStr;
 use types::{EthSpec, SubnetId};
 use PeerConnectionStatus::*;
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 
 /// Information about a given connected peer.
-#[derive(Clone, Debug, Serialize, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 #[serde(bound = "T: EthSpec")]
 pub struct PeerInfo<T: EthSpec> {
     /// The connection status of the peer
@@ -306,7 +308,8 @@ impl<T: EthSpec> PeerInfo<T> {
     }
 }
 
-#[derive(Clone, Debug, Serialize, MallocSizeOf)]
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 /// The current health status of the peer.
 pub enum PeerStatus {
     /// The peer is healthy.
@@ -322,7 +325,8 @@ impl Default for PeerStatus {
 }
 
 /// Connection Direction of connection.
-#[derive(Debug, Clone, Serialize, AsRefStr, MallocSizeOf)]
+#[derive(Debug, Clone, Serialize, AsRefStr)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 #[strum(serialize_all = "snake_case")]
 pub enum ConnectionDirection {
     Incoming,
@@ -330,7 +334,8 @@ pub enum ConnectionDirection {
 }
 
 /// Connection Status of the peer.
-#[derive(Debug, Clone, MallocSizeOf)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub enum PeerConnectionStatus {
     /// The peer is connected.
     Connected {

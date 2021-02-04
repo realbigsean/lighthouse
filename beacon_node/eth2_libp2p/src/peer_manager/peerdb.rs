@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
 use types::{EthSpec, SubnetId};
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 
 /// Max number of disconnected nodes to remember.
@@ -21,7 +22,7 @@ const MAX_BANNED_PEERS: usize = 1000;
 const BANNED_PEERS_PER_IP_THRESHOLD: usize = 5;
 
 /// Storage of known peers, their reputation and information
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct PeerDB<TSpec: EthSpec> {
     /// The collection of known connected peers, their status and reputation
     peers: HashMap<PeerId, PeerInfo<TSpec>>,
@@ -34,7 +35,7 @@ pub struct PeerDB<TSpec: EthSpec> {
     log: slog::Logger,
 }
 
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct BannedPeersCount {
     /// The number of banned peers in the database.
     banned_peers: usize,

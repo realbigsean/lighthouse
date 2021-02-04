@@ -1,10 +1,11 @@
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::Duration;
 
 /// A simple wrapper around `parking_lot::RwLock` that only permits read/write access with a
 /// time-out (i.e., no indefinitely-blocking operations).
-#[derive(MallocSizeOf)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct TimeoutRwLock<T>(RwLock<T>);
 
 impl<T> TimeoutRwLock<T> {

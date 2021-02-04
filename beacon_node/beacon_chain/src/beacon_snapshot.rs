@@ -1,3 +1,4 @@
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde_derive::Serialize;
 use ssz_derive::{Decode, Encode};
@@ -5,7 +6,8 @@ use types::{beacon_state::CloneConfig, BeaconState, EthSpec, Hash256, SignedBeac
 
 /// Represents some block and its associated state. Generally, this will be used for tracking the
 /// head, justified head and finalized head.
-#[derive(Clone, Serialize, PartialEq, Debug, Encode, Decode, MallocSizeOf)]
+#[derive(Clone, Serialize, PartialEq, Debug, Encode, Decode)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct BeaconSnapshot<E: EthSpec> {
     pub beacon_block: SignedBeaconBlock<E>,
     pub beacon_block_root: Hash256,

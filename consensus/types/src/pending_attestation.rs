@@ -1,6 +1,7 @@
 use crate::test_utils::TestRandom;
 use crate::{AttestationData, BitList, EthSpec};
 
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -10,7 +11,8 @@ use tree_hash_derive::TreeHash;
 /// An attestation that has been included in the state but not yet fully processed.
 ///
 /// Spec v0.12.1
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom, MallocSizeOf)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct PendingAttestation<T: EthSpec> {
     pub aggregation_bits: BitList<T::MaxValidatorsPerCommittee>,
     pub data: AttestationData,

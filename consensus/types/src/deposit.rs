@@ -1,5 +1,6 @@
 use crate::test_utils::TestRandom;
 use crate::*;
+#[cfg(feature = "detailed-memory")]
 use mem_util_derive::*;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -13,7 +14,8 @@ pub const DEPOSIT_TREE_DEPTH: usize = 32;
 ///
 /// Spec v0.12.1
 #[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom, MallocSizeOf)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, TestRandom)]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct Deposit {
     pub proof: FixedVector<Hash256, U33>,
     pub data: DepositData,
