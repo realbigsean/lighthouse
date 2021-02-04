@@ -49,7 +49,7 @@ pub use typenum;
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct VariableList<T, N> {
-    vec: Vec<T>,
+    pub vec: Vec<T>,
     _phantom: PhantomData<N>,
 }
 

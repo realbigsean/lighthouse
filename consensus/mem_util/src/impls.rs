@@ -16,13 +16,7 @@ impl<T,N> MallocSizeOf for FixedVector<T,N>
         T: MallocSizeOf,
         N: Unsigned, {
     fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-        let mut n =  self.len() * core::mem::size_of::<T>();
-        if let Some(t) = T::constant_size() {
-            n += self.len() * t;
-        } else {
-            n = self.iter().fold(n, |acc, elem| acc + elem.size_of(ops))
-        }
-        n
+        self.vec.size_of(ops)
     }
 }
 
@@ -31,13 +25,7 @@ impl<T,N> MallocSizeOf for VariableList<T,N>
         T: MallocSizeOf,
         N: Unsigned, {
     fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-        let mut n =  N::to_usize() * core::mem::size_of::<T>();
-        if let Some(t) = T::constant_size() {
-            n += self.len() * t;
-        } else {
-            n = self.iter().fold(n, |acc, elem| acc + elem.size_of(ops))
-        }
-        n
+        self.vec.size_of(ops)
     }
 }
 
@@ -45,13 +33,7 @@ impl<N> MallocSizeOf for BitVector<N>
     where
         N: Unsigned, {
     fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-        let mut n =  N::to_usize() * core::mem::size_of::<u8>();
-        if let Some(t) = u8::constant_size() {
-            n += N::to_usize() * t;
-        } else {
-            n = self.iter().fold(n, |acc, elem| acc + elem.size_of(ops))
-        }
-        n
+        self.bytes.size_of(ops)
     }
 }
 
@@ -59,12 +41,6 @@ impl<N> MallocSizeOf for BitList<N>
     where
         N: Unsigned, {
     fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-        let mut n =  N::to_usize() * core::mem::size_of::<u8>();
-        if let Some(t) = u8::constant_size() {
-            n += N::to_usize() * t;
-        } else {
-            n = self.iter().fold(n, |acc, elem| acc + elem.size_of(ops))
-        }
-        n
+        self.bytes.size_of(ops)
     }
 }

@@ -89,7 +89,7 @@ pub type BitVector<N> = Bitfield<Fixed<N>>;
 /// bit-index. E.g., `vec![0b0000_0001, 0b0000_0010]` has bits `0, 9` set.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Bitfield<T> {
-    bytes: Vec<u8>,
+    pub bytes: Vec<u8>,
     len: usize,
     _phantom: PhantomData<T>,
 }
