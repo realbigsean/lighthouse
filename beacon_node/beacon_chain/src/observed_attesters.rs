@@ -53,7 +53,7 @@ pub trait Item {
 /// Stores a `BitVec` that represents which validator indices have attested during an epoch.
 #[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct EpochBitfield {
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     bitfield: BitVec,
 }
 

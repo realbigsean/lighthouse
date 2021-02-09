@@ -24,7 +24,7 @@ use types::{BeaconState, EthSpec, PublicKey, PublicKeyBytes, Validator};
 pub struct ValidatorPubkeyCache {
     pubkeys: Vec<PublicKey>,
     indices: HashMap<PublicKeyBytes, usize>,
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     persitence_file: ValidatorPubkeyCacheFile,
 }
 

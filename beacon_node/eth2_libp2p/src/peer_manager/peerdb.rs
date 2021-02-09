@@ -31,7 +31,7 @@ pub struct PeerDB<TSpec: EthSpec> {
     /// Counts banned peers in total and per ip
     banned_peers_count: BannedPeersCount,
     /// PeerDB's logger
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     log: slog::Logger,
 }
 

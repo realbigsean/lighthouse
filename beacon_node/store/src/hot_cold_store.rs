@@ -70,7 +70,7 @@ pub struct HotColdDB<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> {
     /// Chain spec.
     spec: ChainSpec,
     /// Logger.
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     pub(crate) log: Logger,
     /// Mere vessel for E.
     _phantom: PhantomData<E>,

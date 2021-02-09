@@ -17,7 +17,7 @@ use std::path::Path;
 /// A wrapped leveldb database.
 #[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct LevelDB<E: EthSpec> {
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     db: Database<BytesKey>,
     /// A mutex to synchronise sensitive read-write transactions.
     transaction_mutex: Mutex<()>,

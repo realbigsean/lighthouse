@@ -21,20 +21,20 @@ pub struct NetworkGlobals<TSpec: EthSpec> {
     /// Listening multiaddrs.
     pub listen_multiaddrs: RwLock<Vec<Multiaddr>>,
     /// The TCP port that the libp2p service is listening on
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     pub listen_port_tcp: AtomicU16,
     /// The UDP port that the discovery service is listening on
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     pub listen_port_udp: AtomicU16,
     /// The collection of known peers.
     pub peers: RwLock<PeerDB<TSpec>>,
     // The local meta data of our node.
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     pub local_metadata: RwLock<MetaData<TSpec>>,
     /// The current gossipsub topic subscriptions.
     pub gossipsub_subscriptions: RwLock<HashSet<GossipTopic>>,
     /// The current sync status of the node.
-    #[ignore_malloc_size_of ="TODO"]
+    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     pub sync_state: RwLock<SyncState>,
 }
 
