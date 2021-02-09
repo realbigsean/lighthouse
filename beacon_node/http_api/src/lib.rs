@@ -19,9 +19,10 @@ use beacon_chain::{
 };
 use beacon_proposer_cache::BeaconProposerCache;
 use block_id::BlockId;
-use eth2::types::{self as api_types, ValidatorId};
+use eth2::types::{self as api_types, ValidatorId, ErrorMessage};
 use eth2_libp2p::{types::SyncState, EnrExt, NetworkGlobals, PeerId, PubsubMessage};
 use lighthouse_version::version_with_platform;
+#[cfg(feature = "detailed-memory")]
 use mem_util::{MallocSizeOf, MallocSizeOfExt};
 use network::NetworkMessage;
 use parking_lot::Mutex;
@@ -214,7 +215,7 @@ pub fn prometheus_metrics() -> warp::filters::log::Log<impl Fn(warp::filters::lo
 pub fn serve<T: BeaconChainTypes>(
     ctx: Arc<Context<T>>,
     shutdown: impl Future<Output = ()> + Send + Sync + 'static,
-) -> Result<(SocketAddr, impl Future<Output = ()>), Error> where <T as BeaconChainTypes>::EthSpec: MallocSizeOf, <T as BeaconChainTypes>::ColdStore: MallocSizeOf, <T as BeaconChainTypes>::HotStore: MallocSizeOf {
+) -> Result<(SocketAddr, impl Future<Output = ()>), Error> {
     let config = ctx.config.clone();
     let log = ctx.log.clone();
 
@@ -2416,6 +2417,7 @@ pub fn serve<T: BeaconChainTypes>(
         );
 
     // GET lighthouse/memory
+    #[cfg(feature = "detailed-memory")]
     let get_lighthouse_memory = warp::path("lighthouse")
         .and(warp::path("memory"))
         .and(warp::path::end())
@@ -2423,7 +2425,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(network_globals)
         .and_then(|chain: Arc<BeaconChain<T>>, network_globals: Arc<NetworkGlobals<T::EthSpec>>| {
             blocking_json_task(move || {
-                Ok(api_types::GenericResponse::from(api_types::Memory {
+                Ok::<_,warp::Rejection>(api_types::GenericResponse::from(api_types::Memory {
                     observed_attestations: chain.get_observed_attestations(),
                     observed_attesters: chain.get_observed_attesters(),
                     observed_aggregators: chain.get_observed_aggregators(),
@@ -2445,6 +2447,19 @@ pub fn serve<T: BeaconChainTypes>(
             })
         });
 
+    #[cfg(not(feature = "detailed-memory"))]
+    let get_lighthouse_memory  = warp::path("lighthouse")
+        .and(warp::path("memory"))
+        .and(warp::path::end())
+        .and_then(|| async move {
+            let json = warp::reply::json(&ErrorMessage {
+                code: 400 as u16,
+                message: "detailed memory not enabled.".to_string(),
+                stacktraces: vec![],
+            });
+
+            Ok::<_,warp::Rejection>(warp::reply::with_status(json, StatusCode::NOT_FOUND))
+        });
 
     // Define the ultimate set of routes that will be provided to the server.
     let routes = warp::get()

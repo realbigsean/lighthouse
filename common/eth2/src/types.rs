@@ -830,12 +830,6 @@ pub struct Memory {
     // pub fork_choice: usize,
 }
 
-// impl Memory {
-//     pub fn get_total(&self) -> usize{
-//
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;

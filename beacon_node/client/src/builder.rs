@@ -65,9 +65,9 @@ impl<TSlotClock, TEth1Backend, TEthSpec, THotStore, TColdStore>
 where
     TSlotClock: SlotClock + Clone + 'static,
     TEth1Backend: Eth1ChainBackend<TEthSpec> + 'static,
-    TEthSpec: EthSpec  + mem_util::MallocSizeOf + 'static,
-    THotStore: ItemStore<TEthSpec> + mem_util::MallocSizeOf + 'static,
-    TColdStore: ItemStore<TEthSpec> + mem_util::MallocSizeOf + 'static,
+    TEthSpec: EthSpec + 'static,
+    THotStore: ItemStore<TEthSpec>  + 'static,
+    TColdStore: ItemStore<TEthSpec>  + 'static,
 {
     /// Instantiates a new, empty builder.
     ///
@@ -495,9 +495,9 @@ impl<TSlotClock, TEth1Backend, TEthSpec, THotStore, TColdStore>
 where
     TSlotClock: SlotClock + Clone + 'static,
     TEth1Backend: Eth1ChainBackend<TEthSpec> + 'static,
-    TEthSpec: EthSpec + mem_util::MallocSizeOf + 'static,
-    THotStore: ItemStore<TEthSpec> + mem_util::MallocSizeOf + 'static,
-    TColdStore: ItemStore<TEthSpec> + mem_util::MallocSizeOf + 'static,
+    TEthSpec: EthSpec  + 'static,
+    THotStore: ItemStore<TEthSpec>  + 'static,
+    TColdStore: ItemStore<TEthSpec>  + 'static,
 {
     /// Consumes the internal `BeaconChainBuilder`, attaching the resulting `BeaconChain` to self.
     pub fn build_beacon_chain(mut self) -> Result<Self, String> {
@@ -532,7 +532,7 @@ impl<TSlotClock, TEth1Backend, TEthSpec>
 where
     TSlotClock: SlotClock + 'static,
     TEth1Backend: Eth1ChainBackend<TEthSpec> + 'static,
-    TEthSpec: EthSpec + mem_util::MallocSizeOf + 'static,
+    TEthSpec: EthSpec  + 'static,
 {
     /// Specifies that the `Client` should use a `HotColdDB` database.
     pub fn disk_store(
@@ -567,9 +567,9 @@ impl<TSlotClock, TEthSpec, THotStore, TColdStore>
     >
 where
     TSlotClock: SlotClock + 'static,
-    TEthSpec: EthSpec + mem_util::MallocSizeOf + 'static,
-    THotStore: ItemStore<TEthSpec> + mem_util::MallocSizeOf + 'static,
-    TColdStore: ItemStore<TEthSpec> + mem_util::MallocSizeOf + 'static,
+    TEthSpec: EthSpec  + 'static,
+    THotStore: ItemStore<TEthSpec>  + 'static,
+    TColdStore: ItemStore<TEthSpec>  + 'static,
 {
     /// Specifies that the `BeaconChain` should cache eth1 blocks/logs from a remote eth1 node
     /// (e.g., Parity/Geth) and refer to that cache when collecting deposits or eth1 votes during
@@ -670,9 +670,9 @@ impl<TEth1Backend, TEthSpec, THotStore, TColdStore>
     ClientBuilder<Witness<SystemTimeSlotClock, TEth1Backend, TEthSpec, THotStore, TColdStore>>
 where
     TEth1Backend: Eth1ChainBackend<TEthSpec> + 'static,
-    TEthSpec: EthSpec + mem_util::MallocSizeOf + 'static,
-    THotStore: ItemStore<TEthSpec> + mem_util::MallocSizeOf + 'static,
-    TColdStore: ItemStore<TEthSpec> + mem_util::MallocSizeOf + 'static,
+    TEthSpec: EthSpec  + 'static,
+    THotStore: ItemStore<TEthSpec>  + 'static,
+    TColdStore: ItemStore<TEthSpec>  + 'static,
 {
     /// Specifies that the slot clock should read the time from the computers system clock.
     pub fn system_time_slot_clock(mut self) -> Result<Self, String> {

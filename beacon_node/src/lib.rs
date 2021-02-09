@@ -35,7 +35,7 @@ pub type ProductionClient<E> =
 /// demonstrates an intention, not a promise.
 pub struct ProductionBeaconNode<E: EthSpec>(ProductionClient<E>);
 
-impl<E: EthSpec + mem_util::MallocSizeOf> ProductionBeaconNode<E> {
+impl<E: EthSpec> ProductionBeaconNode<E> {
     /// Starts a new beacon node `Client` in the given `environment`.
     ///
     /// Identical to `start_from_client_config`, however the `client_config` is generated from the
