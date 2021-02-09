@@ -7,8 +7,9 @@ use types::{AttestationData, ChainSpec, Domain, Epoch, Fork, Hash256};
 
 /// Serialized `AttestationData` augmented with a domain to encode the fork info.
 #[derive(
-    PartialEq, Eq, Clone, Hash, Debug, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize, MallocSizeOf
+    PartialEq, Eq, Clone, Hash, Debug, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize,
 )]
+#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct AttestationId {
     v: Vec<u8>,
 }
