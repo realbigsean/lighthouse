@@ -5,7 +5,7 @@ authors = ["Sigma Prime <contact@sigmaprime.io>"]
 edition = "2018"
 
 [features]
-detailed-memory = []
+detailed-memory = ["http_api/detailed-memory"]
 
 [dev-dependencies]
 sloggers = "1.0.1"
