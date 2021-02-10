@@ -3,6 +3,8 @@ use parking_lot::{Mutex, MutexGuard, RwLock};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use types::*;
+#[cfg(feature = "detailed-memory")]
+use mem_util::{MallocSizeOf, MallocSizeOfOps};
 
 type DBHashMap = HashMap<Vec<u8>, Vec<u8>>;
 
@@ -11,6 +13,13 @@ pub struct MemoryStore<E: EthSpec> {
     db: RwLock<DBHashMap>,
     transaction_mutex: Mutex<()>,
     _phantom: PhantomData<E>,
+}
+
+impl<E: EthSpec> MallocSizeOf for MemoryStore<E> {
+    fn size_of(&self, _: &mut MallocSizeOfOps) -> usize {
+        0
+    }
+    fn constant_size() -> Option<usize> { Some(0) }
 }
 
 impl<E: EthSpec> MemoryStore<E> {

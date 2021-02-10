@@ -13,15 +13,23 @@ use mem_util_derive::*;
 use parking_lot::{Mutex, MutexGuard};
 use std::marker::PhantomData;
 use std::path::Path;
+use mem_util::MallocSizeOfOps;
 
 /// A wrapped leveldb database.
-#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
+//#[cfg_attr(feature = "detailed-memory", derive(MallocSizeOf))]
 pub struct LevelDB<E: EthSpec> {
-    #[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
+    //#[cfg_attr(feature =  "detailed-memory", ignore_malloc_size_of ="TODO")]
     db: Database<BytesKey>,
     /// A mutex to synchronise sensitive read-write transactions.
     transaction_mutex: Mutex<()>,
     _phantom: PhantomData<E>,
+}
+
+impl<E: EthSpec> MallocSizeOf for LevelDB<E> {
+    fn size_of(&self, _: &mut MallocSizeOfOps) -> usize {
+        0
+    }
+    fn constant_size() -> Option<usize> { Some(0) }
 }
 
 impl<E: EthSpec> LevelDB<E> {

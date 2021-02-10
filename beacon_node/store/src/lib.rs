@@ -37,6 +37,7 @@ pub use impls::beacon_state::StorageContainer as BeaconStateStorageContainer;
 pub use metrics::scrape_for_metrics;
 use parking_lot::MutexGuard;
 pub use types::*;
+use mem_util::MallocSizeOf;
 
 pub trait KeyValueStore<E: EthSpec>: Sync + Send + Sized + 'static {
     /// Retrieve some bytes in `column` with `key`.
@@ -83,7 +84,7 @@ pub enum KeyValueStoreOp {
     DeleteKey(Vec<u8>),
 }
 
-pub trait ItemStore<E: EthSpec>: KeyValueStore<E> + Sync + Send + Sized + 'static {
+pub trait ItemStore<E: EthSpec>: KeyValueStore<E> + Sync + Send + Sized + MallocSizeOf + 'static {
     /// Store an item in `Self`.
     fn put<I: StoreItem>(&self, key: &Hash256, item: &I) -> Result<(), Error> {
         let column = I::db_column().into();

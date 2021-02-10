@@ -2626,49 +2626,49 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_observed_attestations(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_observed_attestations(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.observed_attestations, &mut ops)
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_observed_attesters(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_observed_attesters(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.observed_attesters, &mut ops)
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_observed_aggregators(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_observed_aggregators(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.observed_aggregators, &mut ops)
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_observed_block_producers(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_observed_block_producers(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.observed_block_producers, &mut ops)
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_observed_voluntary_exits(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_observed_voluntary_exits(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.observed_voluntary_exits, &mut ops)
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_observed_proposer_slashings(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_observed_proposer_slashings(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.observed_proposer_slashings, &mut ops)
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_observed_attester_slashings(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_observed_attester_slashings(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.observed_attester_slashings, &mut ops)
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_canonical_head(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_canonical_head(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.canonical_head, &mut ops)
     }
@@ -2679,7 +2679,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_snapshot_cache(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf {
+    pub fn get_snapshot_cache(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.snapshot_cache, &mut ops)
     }
@@ -2701,7 +2701,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     // }
 
     #[cfg(feature = "detailed-memory")]
-    pub fn get_hot_cold(&self) -> usize where <T as BeaconChainTypes>::EthSpec: mem_util::MallocSizeOf, <T as BeaconChainTypes>::ColdStore: mem_util::MallocSizeOf, <T as BeaconChainTypes>::HotStore: mem_util::MallocSizeOf {
+    pub fn get_hot_cold(&self) -> usize {
         let mut ops = new_malloc_size_ops();
         MallocSizeOf::size_of(&self.store, &mut ops)
     }

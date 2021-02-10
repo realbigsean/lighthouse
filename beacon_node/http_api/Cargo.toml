@@ -5,7 +5,7 @@ authors = ["Paul Hauner <paul@paulhauner.com>"]
 edition = "2018"
 
 [features]
-detailed-memory = []
+detailed-memory = ["beacon_chain/detailed-memory", "types/detailed-memory"]
 
 [dependencies]
 async-stream = "0.3.0"

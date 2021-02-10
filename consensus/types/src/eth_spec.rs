@@ -8,6 +8,7 @@ use ssz_types::typenum::{
 };
 use std::fmt::{self, Debug};
 use std::str::FromStr;
+#[cfg(feature = "detailed-memory")]
 use mem_util::{MallocSizeOf, MallocSizeOfOps};
 
 const MAINNET: &str = "mainnet";
@@ -47,7 +48,7 @@ impl fmt::Display for EthSpecId {
     }
 }
 
-pub trait EthSpec: 'static + Default + Sync + Send + Clone + Debug + PartialEq + Eq {
+pub trait EthSpec: 'static + Default + Sync + Send + Clone + Debug + PartialEq + Eq + MallocSizeOf {
     /*
      * Constants
      */
@@ -190,6 +191,20 @@ macro_rules! params_from_eth_spec {
 pub struct MainnetEthSpec;
 
 impl MallocSizeOf for MainnetEthSpec {
+    fn size_of(&self, _: &mut MallocSizeOfOps) -> usize {
+        0
+    }
+    fn constant_size() -> Option<usize> { Some(0) }
+}
+
+impl MallocSizeOf for MinimalEthSpec {
+    fn size_of(&self, _: &mut MallocSizeOfOps) -> usize {
+        0
+    }
+    fn constant_size() -> Option<usize> { Some(0) }
+}
+
+impl MallocSizeOf for V012LegacyEthSpec {
     fn size_of(&self, _: &mut MallocSizeOfOps) -> usize {
         0
     }
