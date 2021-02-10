@@ -36,3 +36,6 @@ store = { path = "../store" }
 environment = { path = "../../lighthouse/environment" }
 tree_hash = "0.1.1"
 discv5 = { git = "https://github.com/realbigsean/discv5", rev = "e1fd56eefcf88d6f5281eccdbf24ed8f1ee52f92" }
+
+[features]
+detailed-memory = []
