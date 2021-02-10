@@ -58,3 +58,4 @@ exit-future = "0.2.0"
 
 [features]
 libp2p-websocket = []
+detailed-memory = []

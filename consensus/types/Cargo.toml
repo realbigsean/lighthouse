@@ -51,6 +51,7 @@ criterion = "0.3.3"
 
 [features]
 default = ["sqlite", "legacy-arith"]
+detailed-memory = ["cached_tree_hash/detailed-memory"]
 # Allow saturating arithmetic on slots and epochs. Enabled by default, but deprecated.
 legacy-arith = []
 sqlite = ["rusqlite"]

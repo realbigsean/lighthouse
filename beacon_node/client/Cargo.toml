@@ -4,6 +4,9 @@ version = "0.2.0"
 authors = ["Sigma Prime <contact@sigmaprime.io>"]
 edition = "2018"
 
+[features]
+detailed-memory = []
+
 [dev-dependencies]
 sloggers = "1.0.1"
 toml = "0.5.6"

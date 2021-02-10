@@ -9,7 +9,7 @@ default = ["participation_metrics"]
 write_ssz_files = []  # Writes debugging .ssz files to /tmp during block processing.
 participation_metrics = []  # Exposes validator participation metrics to Prometheus.
 test_logger = [] # Print log output to stderr when running tests instead of dropping it
-detailed-memory = []
+detailed-memory = ["operation_pool/detailed-memory", "proto_array/detailed-memory", "tree_hash/detailed-memory"]
 
 [dev-dependencies]
 int_to_bytes = { path = "../../consensus/int_to_bytes" }

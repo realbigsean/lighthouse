@@ -4,6 +4,9 @@ version = "0.2.0"
 authors = ["Michael Sproul <michael@sigmaprime.io>"]
 edition = "2018"
 
+[features]
+detailed-memory = []
+
 [dependencies]
 int_to_bytes = { path = "../../consensus/int_to_bytes" }
 parking_lot = "0.11.0"

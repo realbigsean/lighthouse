@@ -8,6 +8,9 @@ edition = "2018"
 name = "benches"
 harness = false
 
+[features]
+detailed-memory = []
+
 [dev-dependencies]
 tempfile = "3.1.0"
 criterion = "0.3.3"

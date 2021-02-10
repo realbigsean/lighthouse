@@ -18,7 +18,7 @@ spec-minimal = []
 # Support spec v0.12 (used by Medalla testnet).
 spec-v12 = []
 # compile with `MallocSizeOf`
-detailed-memory = []
+detailed-memory = ["beacon_node/detailed-memory"]
 
 [dependencies]
 beacon_node = { "path" = "../beacon_node" }

@@ -24,3 +24,4 @@ smallvec = "1.6.1"
 
 [features]
 arbitrary = ["ethereum-types/arbitrary"]
+detailed-memory = []

@@ -21,3 +21,4 @@ quickcheck_macros = "0.9.1"
 
 [features]
 arbitrary = ["ethereum-types/arbitrary"]
+detailed-memory = []

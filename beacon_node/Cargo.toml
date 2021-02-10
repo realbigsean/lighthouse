@@ -13,7 +13,7 @@ node_test_rig = { path = "../testing/node_test_rig" }
 
 [features]
 write_ssz_files = ["beacon_chain/write_ssz_files"]  # Writes debugging .ssz files to /tmp during block processing.
-detailed-memory = []
+detailed-memory = ["beacon_chain/detailed-memory", "eth2_libp2p/detailed-memory", "client/detailed-memory", "store/detailed-memory", "types/detailed-memory"]
 
 [dependencies]
 eth2_config = { path = "../common/eth2_config" }

@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Paul Hauner <paul@paulhauner.com>"]
 edition = "2018"
 
+[features]
+detailed-memory = []
+
 [dependencies]
 async-stream = "0.3.0"
 warp = "0.3.0"
@@ -36,6 +39,3 @@ store = { path = "../store" }
 environment = { path = "../../lighthouse/environment" }
 tree_hash = "0.1.1"
 discv5 = { git = "https://github.com/realbigsean/discv5", rev = "e1fd56eefcf88d6f5281eccdbf24ed8f1ee52f92" }
-
-[features]
-detailed-memory = []
