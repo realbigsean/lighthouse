@@ -242,6 +242,7 @@ mod test {
         builder.build()
     }
 
+    #[allow(clippy::needless_range_loop)]
     fn check_cache_get(cache: &ValidatorPubkeyCache, keypairs: &[Keypair]) {
         let validator_count = keypairs.len();
 
