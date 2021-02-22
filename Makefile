@@ -151,4 +151,5 @@ clean:
 
 # Runs `cargo vendor` to make sure dependencies can be vendored for packaging, reproducibility and archival purpose.
 vendor:
-	cargo vendor
+	cargo vendor /tmp/vendor
+
