@@ -38,7 +38,7 @@ jobs:
       - name: Check home
         run: |
           echo $HOME
-          ls -l $HOME
+          ls -l /home/runner
       - uses: actions/checkout@v1
       - name: Run cargo vendor to make sure dependencies can be vendored for packaging, reproducibility and archival purpose
         run:  make vendor
