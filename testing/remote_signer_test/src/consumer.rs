@@ -28,11 +28,7 @@ pub fn do_sign_request<E: EthSpec, T: RemoteSignerObject>(
     test_client: &RemoteSignerHttpConsumer,
     test_input: RemoteSignerTestData<E, T>,
 ) -> Result<String, Error> {
-    let mut runtime = Builder::new()
-        .basic_scheduler()
-        .enable_all()
-        .build()
-        .unwrap();
+    let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
 
     runtime.block_on(test_client.sign(
         &test_input.public_key,

@@ -2,11 +2,11 @@ use crate::checks::{epoch_delay, verify_all_finalized_at};
 use crate::local_network::LocalNetwork;
 use clap::ArgMatches;
 use futures::prelude::*;
-use node_test_rig::ClientConfig;
 use node_test_rig::{
-    environment::EnvironmentBuilder, testing_client_config, ClientGenesis, ValidatorConfig,
-    ValidatorFiles,
+    environment::EnvironmentBuilder, testing_client_config, ClientGenesis, ValidatorFiles,
 };
+use node_test_rig::{testing_validator_config, ClientConfig};
+use std::cmp::max;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use types::{Epoch, EthSpec};
@@ -53,7 +53,8 @@ fn syncing_sim(
     let end_after_checks = true;
     let eth1_block_time = Duration::from_millis(15_000 / speed_up_factor);
 
-    spec.milliseconds_per_slot /= speed_up_factor;
+    spec.seconds_per_slot /= speed_up_factor;
+    spec.seconds_per_slot = max(1, spec.seconds_per_slot);
     spec.eth1_follow_distance = 16;
     spec.genesis_delay = eth1_block_time.as_secs() * spec.eth1_follow_distance * 2;
     spec.min_genesis_time = 0;
@@ -61,7 +62,7 @@ fn syncing_sim(
     spec.seconds_per_eth1_block = 1;
 
     let num_validators = 8;
-    let slot_duration = Duration::from_millis(spec.milliseconds_per_slot);
+    let slot_duration = Duration::from_secs(spec.seconds_per_slot);
     let context = env.core_context();
     let mut beacon_config = testing_client_config();
 
@@ -92,7 +93,7 @@ fn syncing_sim(
          * Add a validator client which handles all validators from the genesis state.
          */
         network
-            .add_validator_client(ValidatorConfig::default(), 0, validator_files)
+            .add_validator_client(testing_validator_config(), 0, validator_files, true)
             .await?;
 
         // Check all syncing strategies one after other.
@@ -129,7 +130,12 @@ fn syncing_sim(
         Ok::<(), String>(())
     };
 
-    env.runtime().block_on(main_future)
+    env.runtime().block_on(main_future).unwrap();
+
+    env.fire_signal();
+    env.shutdown_on_idle();
+
+    Ok(())
 }
 
 pub async fn pick_strategy<E: EthSpec>(
@@ -209,7 +215,8 @@ pub async fn verify_one_node_sync<E: EthSpec>(
     // limited to at most `sync_timeout` epochs
     let mut interval = tokio::time::interval(epoch_duration);
     let mut count = 0;
-    while interval.next().await.is_some() {
+    loop {
+        interval.tick().await;
         if count >= sync_timeout || !check_still_syncing(&network_c).await? {
             break;
         }
@@ -246,7 +253,8 @@ pub async fn verify_two_nodes_sync<E: EthSpec>(
     // limited to at most `sync_timeout` epochs
     let mut interval = tokio::time::interval(epoch_duration);
     let mut count = 0;
-    while interval.next().await.is_some() {
+    loop {
+        interval.tick().await;
         if count >= sync_timeout || !check_still_syncing(&network_c).await? {
             break;
         }
@@ -294,7 +302,8 @@ pub async fn verify_in_between_sync<E: EthSpec>(
     // limited to at most `sync_timeout` epochs
     let mut interval = tokio::time::interval(epoch_duration);
     let mut count = 0;
-    while interval.next().await.is_some() {
+    loop {
+        interval.tick().await;
         if count >= sync_timeout || !check_still_syncing(&network_c).await? {
             break;
         }

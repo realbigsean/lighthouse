@@ -7,12 +7,11 @@ use eth2::{
     BeaconNodeHttpClient, Url,
 };
 use eth2_keystore::Keystore;
-use eth2_testnet_config::Eth2TestnetConfig;
+use eth2_network_config::Eth2NetworkConfig;
 use safe_arith::SafeArith;
 use slot_clock::{SlotClock, SystemTimeSlotClock};
 use std::path::PathBuf;
 use std::time::Duration;
-use tokio_compat_02::FutureExt;
 use types::{ChainSpec, Epoch, EthSpec, Fork, VoluntaryExit};
 
 pub const CMD: &str = "exit";
@@ -77,17 +76,14 @@ pub fn cli_run<E: EthSpec>(matches: &ArgMatches, env: Environment<E>) -> Result<
         .clone()
         .expect("network should have a valid config");
 
-    env.runtime().block_on(
-        publish_voluntary_exit::<E>(
-            &keystore_path,
-            password_file_path.as_ref(),
-            &client,
-            &spec,
-            stdin_inputs,
-            &testnet_config,
-        )
-        .compat(),
-    )?;
+    env.runtime().block_on(publish_voluntary_exit::<E>(
+        &keystore_path,
+        password_file_path.as_ref(),
+        &client,
+        &spec,
+        stdin_inputs,
+        &testnet_config,
+    ))?;
 
     Ok(())
 }
@@ -99,7 +95,7 @@ async fn publish_voluntary_exit<E: EthSpec>(
     client: &BeaconNodeHttpClient,
     spec: &ChainSpec,
     stdin_inputs: bool,
-    testnet_config: &Eth2TestnetConfig,
+    testnet_config: &Eth2NetworkConfig,
 ) -> Result<(), String> {
     let genesis_data = get_geneisis_data(client).await?;
     let testnet_genesis_root = testnet_config
@@ -257,7 +253,7 @@ fn get_current_epoch<E: EthSpec>(genesis_time: u64, spec: &ChainSpec) -> Option<
     let slot_clock = SystemTimeSlotClock::new(
         spec.genesis_slot,
         Duration::from_secs(genesis_time),
-        Duration::from_millis(spec.milliseconds_per_slot),
+        Duration::from_secs(spec.seconds_per_slot),
     );
     slot_clock.now().map(|s| s.epoch(E::slots_per_epoch()))
 }
@@ -284,7 +280,7 @@ fn load_voting_keypair(
             .map_err(|e| format!("Error while decrypting keypair: {:?}", e))
     } else {
         // Prompt password from user.
-        eprintln!("");
+        eprintln!();
         eprintln!(
             "{} for validator in {:?}: ",
             PASSWORD_PROMPT, voting_keystore_path
@@ -293,7 +289,7 @@ fn load_voting_keypair(
         match keystore.decrypt_keypair(password.as_ref()) {
             Ok(keypair) => {
                 eprintln!("Password is correct.");
-                eprintln!("");
+                eprintln!();
                 std::thread::sleep(std::time::Duration::from_secs(1)); // Provides nicer UX.
                 Ok(keypair)
             }

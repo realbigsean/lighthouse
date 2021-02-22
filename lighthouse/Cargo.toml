@@ -1,6 +1,6 @@
 [package]
 name = "lighthouse"
-version = "1.0.3"
+version = "1.1.3"
 authors = ["Sigma Prime <contact@sigmaprime.io>"]
 edition = "2018"
 
@@ -13,10 +13,14 @@ portable = ["bls/supranational-portable"]
 modern = ["bls/supranational-force-adx"]
 # Uses the slower Milagro BLS library, which is written in native Rust.
 milagro = ["bls/milagro"]
+# Support minimal spec (used for testing only).
+spec-minimal = []
+# Support spec v0.12 (used by Medalla testnet).
+spec-v12 = []
 
 [dependencies]
 beacon_node = { "path" = "../beacon_node" }
-tokio = "0.3.2"
+tokio = "1.1.0"
 slog = { version = "2.5.2", features = ["max_level_trace"] }
 sloggers = "1.0.1"
 types = { "path" = "../consensus/types" }
@@ -32,12 +36,11 @@ futures = "0.3.7"
 validator_client = { "path" = "../validator_client" }
 account_manager = { "path" = "../account_manager" }
 clap_utils = { path = "../common/clap_utils" }
-eth2_testnet_config = { path = "../common/eth2_testnet_config" }
+eth2_network_config = { path = "../common/eth2_network_config" }
 directory = { path = "../common/directory" }
 lighthouse_version = { path = "../common/lighthouse_version" }
 account_utils = { path = "../common/account_utils" }
 remote_signer = { "path" = "../remote_signer" }
-tokio-compat-02 = "0.1"
 
 [dev-dependencies]
 tempfile = "3.1.0"
