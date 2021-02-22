@@ -148,3 +148,7 @@ clean:
 	cargo clean
 	make -C $(EF_TESTS) clean
 	make -C $(STATE_TRANSITION_VECTORS) clean
+
+# Runs `cargo vendor` to make sure dependencies can be vendored for packaging, reproducibility and archival purpose.
+vendor:
+	cargo vendor
