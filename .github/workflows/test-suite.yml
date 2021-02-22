@@ -35,9 +35,11 @@ jobs:
       runs-on: ubuntu-latest
       needs: cargo-fmt
       steps:
-          - uses: actions/checkout@v1
-          - name: Run cargo vendor to make sure dependencies can be vendored for packaging, reproducibility and archival purpose
-            run:  make vendor
+      - name: Get latest version of stable Rust
+        run: rustup update stable
+      - uses: actions/checkout@v1
+      - name: Run cargo vendor to make sure dependencies can be vendored for packaging, reproducibility and archival purpose
+        run:  make vendor
   release-tests-ubuntu:
     name: release-tests-ubuntu
     runs-on: ubuntu-latest
