@@ -16,9 +16,69 @@ Although we don't recommend that users rely on these endpoints, we
 document them briefly so they can be utilized by developers and
 researchers.
 
-### `/lighthouse/health`
+### `/lighthouse/system`
 
-*Presently only available on Linux.*
+*Available on Linux and macOS.*
+
+```bash
+curl -X GET "http://localhost:5052/lighthouse/system" -H  "accept: application/json" | jq
+```
+
+```json
+{
+    "data": {
+        "health": {
+            "pid": 11612,
+            "pid_mem_resident_set_size": 170893312,
+            "pid_mem_virtual_memory_size": 1401901056,
+            "sys_virt_mem_total": 8363692032,
+            "sys_virt_mem_available": 5679951872,
+            "sys_virt_mem_used": 2435825664,
+            "sys_virt_mem_free": 2547994624,
+            "sys_virt_mem_percent": 32.087982,
+            "sys_loadavg_1": 0.24,
+            "sys_loadavg_5": 0.55,
+            "sys_loadavg_15": 1.42,
+            "network": {
+                "rx_bytes": 1333660554356,
+                "rx_errors": 824206201966,
+                "rx_packets": 2565207513,
+                "tx_bytes": 3048133285,
+                "tx_errors": 0,
+                "tx_packets": 0
+            }
+        },
+        "drives": [
+            {
+                "filesystem": "udev",
+                "avail": 4168499200,
+                "used": 0,
+                "used_pct": 0,
+                "total": 4168499200,
+                "mounted_on": "/dev"
+            },
+            {
+                "filesystem": "/dev/vda1",
+                "avail": 91556573184,
+                "used": 74761998336,
+                "used_pct": 44,
+                "total": 166318571520,
+                "mounted_on": "/"
+            },
+            {
+                "filesystem": "/dev/vda15",
+                "avail": 105666560,
+                "used": 3756032,
+                "used_pct": 3,
+                "total": 109422592,
+                "mounted_on": "/boot/efi"
+            }
+        ]
+    }
+}
+```
+
+### `/lighthouse/system/health`
 
 ```bash
 curl -X GET "http://localhost:5052/lighthouse/health" -H  "accept: application/json" | jq
@@ -26,20 +86,64 @@ curl -X GET "http://localhost:5052/lighthouse/health" -H  "accept: application/j
 
 ```json
 {
-  "data": {
-    "pid": 1728254,
-    "pid_num_threads": 47,
-    "pid_mem_resident_set_size": 510054400,
-    "pid_mem_virtual_memory_size": 3963158528,
-    "sys_virt_mem_total": 16715530240,
-    "sys_virt_mem_available": 4065374208,
-    "sys_virt_mem_used": 11383402496,
-    "sys_virt_mem_free": 1368662016,
-    "sys_virt_mem_percent": 75.67906,
-    "sys_loadavg_1": 4.92,
-    "sys_loadavg_5": 5.53,
-    "sys_loadavg_15": 5.58
-  }
+    "data": {
+        "pid": 11612,
+        "pid_mem_resident_set_size": 396988416,
+        "pid_mem_virtual_memory_size": 1902653440,
+        "sys_virt_mem_total": 8363692032,
+        "sys_virt_mem_available": 5458038784,
+        "sys_virt_mem_used": 2656464896,
+        "sys_virt_mem_free": 2229014528,
+        "sys_virt_mem_percent": 34.741276,
+        "sys_loadavg_1": 2.54,
+        "sys_loadavg_5": 1.61,
+        "sys_loadavg_15": 1.64,
+        "network": {
+            "rx_bytes": 1333721410240,
+            "rx_errors": 824208688988,
+            "rx_packets": 2565265020,
+            "tx_bytes": 3048160193,
+            "tx_errors": 0,
+            "tx_packets": 0
+        }
+    }
+}
+```
+
+### `/lighthouse/system/drives`
+
+```bash
+curl -X GET "http://localhost:5052/lighthouse/drives" -H  "accept: application/json" | jq
+```
+
+```json
+{
+    "data": [
+        {
+            "filesystem": "udev",
+            "avail": 4168499200,
+            "used": 0,
+            "used_pct": 0,
+            "total": 4168499200,
+            "mounted_on": "/dev"
+        },
+        {
+            "filesystem": "/dev/vda1",
+            "avail": 91473604608,
+            "used": 74844966912,
+            "used_pct": 45,
+            "total": 166318571520,
+            "mounted_on": "/"
+        },
+        {
+            "filesystem": "/dev/vda15",
+            "avail": 105666560,
+            "used": 3756032,
+            "used_pct": 3,
+            "total": 109422592,
+            "mounted_on": "/boot/efi"
+        }
+    ]
 }
 ```
 

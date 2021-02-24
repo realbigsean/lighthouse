@@ -21,8 +21,11 @@ libsecp256k1 = "0.3.5"
 ring = "0.16.19"
 bytes = "1.0.1"
 account_utils = { path = "../../common/account_utils" }
-eth2_ssz = "0.1.2"
+eth2_ssz = { path = "../../consensus/ssz" }
 eth2_ssz_derive = "0.1.0"
+sysinfo = "0.15.2"
+systemstat = "0.1.5"
+lighthouse_health = { path = "../../common/lighthouse_health", optional = true }
 futures-util = "0.3.8"
 futures = "0.3.8"
 
@@ -32,4 +35,4 @@ procinfo = { version = "0.4.2", optional = true }
 
 [features]
 default = ["lighthouse"]
-lighthouse = ["proto_array", "psutil", "procinfo"]
+lighthouse = ["proto_array", "lighthouse_health"]

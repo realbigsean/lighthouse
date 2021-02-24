@@ -420,6 +420,19 @@ where
             .runtime_context
             .as_ref()
             .ok_or("build requires a runtime context")?;
+            .ok_or_else(|| "build requires a runtime context".to_string())?;
+        let chain_db_path = self
+            .db_path
+            .ok_or_else(|| "build requires a chain db path context".to_string())?;
+        let freezer_db_path = self
+            .freezer_db_path
+            .ok_or_else(|| "build requires a freezer db path".to_string())?;
+
+        let db_paths = http_api::DBPaths {
+            chain_db: chain_db_path,
+            freezer_db: freezer_db_path,
+        };
+
         let log = runtime_context.log().clone();
 
         let http_api_listen_addr = if self.http_api_config.enabled {
@@ -428,6 +441,7 @@ where
                 chain: self.beacon_chain.clone(),
                 network_tx: self.network_send.clone(),
                 network_globals: self.network_globals.clone(),
+                db_paths: Some(db_paths.clone()),
                 eth1_service: self.eth1_service.clone(),
                 log: log.clone(),
             });
@@ -458,8 +472,7 @@ where
             let ctx = Arc::new(http_metrics::Context {
                 config: self.http_metrics_config.clone(),
                 chain: self.beacon_chain.clone(),
-                db_path: self.db_path.clone(),
-                freezer_db_path: self.freezer_db_path.clone(),
+                db_paths: Some(db_paths),
                 log: log.clone(),
             });
 

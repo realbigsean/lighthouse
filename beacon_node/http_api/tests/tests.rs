@@ -288,6 +288,7 @@ impl ApiTester {
             chain: Some(chain.clone()),
             network_tx: Some(network_tx),
             network_globals: Some(Arc::new(network_globals)),
+            db_paths: None,
             eth1_service: Some(eth1_service),
             log,
         });
@@ -1863,16 +1864,50 @@ impl ApiTester {
         self
     }
 
-    #[cfg(target_os = "linux")]
-    pub async fn test_get_lighthouse_health(self) -> Self {
-        self.client.get_lighthouse_health().await.unwrap();
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    pub async fn test_get_lighthouse_system(self) -> Self {
+        self.client.get_lighthouse_system().await.unwrap();
 
         self
     }
 
-    #[cfg(not(target_os = "linux"))]
-    pub async fn test_get_lighthouse_health(self) -> Self {
-        self.client.get_lighthouse_health().await.unwrap_err();
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    pub async fn test_get_lighthouse_system_health(self) -> Self {
+        self.client.get_lighthouse_system_health().await.unwrap();
+
+        self
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    pub async fn test_get_lighthouse_system_drives(self) -> Self {
+        self.client.get_lighthouse_system_drives().await.unwrap();
+
+        self
+    }
+
+    #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+    pub async fn test_get_lighthouse_system(self) -> Self {
+        self.client.get_lighthouse_system().await.unwrap_err();
+
+        self
+    }
+
+    #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+    pub async fn test_get_lighthouse_system_health(self) -> Self {
+        self.client
+            .get_lighthouse_system_health()
+            .await
+            .unwrap_err();
+
+        self
+    }
+
+    #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+    pub async fn test_get_lighthouse_system_drives(self) -> Self {
+        self.client
+            .get_lighthouse_system_drives()
+            .await
+            .unwrap_err();
 
         self
     }
@@ -2392,7 +2427,11 @@ async fn get_validator_beacon_committee_subscriptions() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn lighthouse_endpoints() {
     ApiTester::new()
-        .test_get_lighthouse_health()
+        .test_get_lighthouse_system()
+        .await
+        .test_get_lighthouse_system_health()
+        .await
+        .test_get_lighthouse_system_drives()
         .await
         .test_get_lighthouse_syncing()
         .await

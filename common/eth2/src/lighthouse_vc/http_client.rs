@@ -10,6 +10,7 @@ use ring::digest::{digest, SHA256};
 use secp256k1::{Message, PublicKey, Signature};
 use serde::{de::DeserializeOwned, Serialize};
 
+pub use super::types::ValidatorHealth;
 pub use reqwest;
 pub use reqwest::{Response, StatusCode, Url};
 
@@ -198,12 +199,13 @@ impl ValidatorClientHttpClient {
     }
 
     /// `GET lighthouse/health`
-    pub async fn get_lighthouse_health(&self) -> Result<GenericResponse<Health>, Error> {
+    pub async fn get_lighthouse_health(&self) -> Result<GenericResponse<ValidatorHealth>, Error> {
         let mut path = self.server.clone();
 
         path.path_segments_mut()
             .map_err(|()| Error::InvalidUrl(self.server.clone()))?
             .push("lighthouse")
+            .push("system")
             .push("health");
 
         self.get(path).await
