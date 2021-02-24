@@ -224,6 +224,14 @@ where
                 // server so the real one can be started later.
                 let (exit_tx, exit_rx) = oneshot::channel::<()>();
                 let http_listen_opt = if self.http_api_config.enabled {
+                    let chain_db_path = PathBuf::new();
+                    let freezer_db_path = PathBuf::new();
+
+                    let db_paths = http_api::DBPaths {
+                        chain_db: chain_db_path,
+                        freezer_db: freezer_db_path,
+                    };
+
                     #[allow(clippy::type_complexity)]
                     let ctx: Arc<
                         http_api::Context<
@@ -232,6 +240,7 @@ where
                     > = Arc::new(http_api::Context {
                         config: self.http_api_config.clone(),
                         chain: None,
+                        db_paths: Some(db_paths.clone()),
                         network_tx: None,
                         network_globals: None,
                         eth1_service: Some(genesis_service.eth1_service.clone()),
@@ -420,13 +429,13 @@ where
             .runtime_context
             .as_ref()
             .ok_or("build requires a runtime context")?;
-            .ok_or_else(|| "build requires a runtime context".to_string())?;
+
         let chain_db_path = self
-            .db_path
-            .ok_or_else(|| "build requires a chain db path context".to_string())?;
+            .db_path.clone()
+            .ok_or("build requires a chain db path context")?;
         let freezer_db_path = self
-            .freezer_db_path
-            .ok_or_else(|| "build requires a freezer db path".to_string())?;
+            .freezer_db_path.clone()
+            .ok_or("build requires a freezer db path")?;
 
         let db_paths = http_api::DBPaths {
             chain_db: chain_db_path,
