@@ -2237,7 +2237,6 @@ pub fn serve<T: BeaconChainTypes>(
                                 .map_err(warp_utils::reject::beacon_chain_error)?;
                             let current_slot_opt = chain.slot().ok();
 
-
                             eth1.sync_status(head_info.genesis_time, current_slot_opt, &chain.spec)
                                 .ok_or_else(|| {
                                     warp_utils::reject::custom_server_error(

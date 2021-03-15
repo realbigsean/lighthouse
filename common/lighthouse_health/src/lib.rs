@@ -11,7 +11,7 @@ use psutil::process::Process;
 
 const MB: u64 = 1_000_000;
 const GB: u64 = 1_000_000_000;
-const MIN_SAFE_DB_SIZE: u64 = 1 * GB;
+const MIN_SAFE_DB_SIZE: u64 = GB;
 const CHAIN_DB_REQ_SIZE: u64 = 100 * GB;
 const FREEZER_DB_REQ_SIZE: u64 = 20 * GB;
 const TOTAL_REQ_SIZE: u64 = CHAIN_DB_REQ_SIZE + FREEZER_DB_REQ_SIZE;
@@ -361,7 +361,7 @@ fn cpu_status(health: &CommonHealth) -> StatusGauge {
 }
 
 const MEMORY_AVAILABLE_ERROR: u64 = 512 * MB;
-const MEMORY_AVAILABLE_WARN: u64 = 1 * GB;
+const MEMORY_AVAILABLE_WARN: u64 = GB;
 const MEMORY_RECOMMENDED_TOTAL: u64 = 8 * GB;
 
 fn memory_status(health: &CommonHealth) -> StatusGauge {
@@ -397,20 +397,18 @@ fn eth1_status(eth1_opt: Option<Eth1SyncInfo>) -> StatusGauge {
         let pct = round(eth1.eth1_node_sync_status_percentage, 2);
 
         if ready {
-            if pct == 100.0 {
+            if (pct - 100.0).abs() < 1.0 {
                 Status::ok("Eth1 is fully synced.".to_string())
             } else {
                 Status::warn(format!("Eth1 is adequately synced at {}%.", pct))
             }
+        } else if (pct - 100.0).abs() < 1.0 {
+            Status::warn("Eth1 is fully synced but caches are still being built.".to_string())
         } else {
-            if pct == 100.0 {
-                Status::warn("Eth1 is fully synced but caches are still being built.".to_string())
-            } else {
-                Status::warn(format!(
-                    "Eth1 is not adequately synced. Estimated progress: {}%.",
-                    pct,
-                ))
-            }
+            Status::warn(format!(
+                "Eth1 is not adequately synced. Estimated progress: {}%.",
+                pct,
+            ))
         }
         .gauge(pct)
     } else {

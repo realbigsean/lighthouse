@@ -241,7 +241,7 @@ where
                     > = Arc::new(http_api::Context {
                         config: self.http_api_config.clone(),
                         chain: None,
-                        db_paths: Some(db_paths.clone()),
+                        db_paths: Some(db_paths),
                         network_tx: None,
                         network_globals: None,
                         eth1_service: Some(genesis_service.eth1_service.clone()),
@@ -432,10 +432,12 @@ where
             .ok_or("build requires a runtime context")?;
 
         let chain_db_path = self
-            .db_path.clone()
+            .db_path
+            .clone()
             .ok_or("build requires a chain db path context")?;
         let freezer_db_path = self
-            .freezer_db_path.clone()
+            .freezer_db_path
+            .clone()
             .ok_or("build requires a freezer db path")?;
 
         let db_paths = http_api::DBPaths {

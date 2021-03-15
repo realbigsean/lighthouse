@@ -205,7 +205,6 @@ impl ValidatorClientHttpClient {
         path.path_segments_mut()
             .map_err(|()| Error::InvalidUrl(self.server.clone()))?
             .push("lighthouse")
-            .push("system")
             .push("health");
 
         self.get(path).await

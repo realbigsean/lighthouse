@@ -16,12 +16,13 @@ use eth2_libp2p::{
 };
 use futures::stream::{Stream, StreamExt};
 use futures::FutureExt;
-use http_api::{Config, Context};
+use http_api::{Config, Context, DBPaths};
 use network::NetworkMessage;
 use state_processing::per_slot_processing;
 use std::convert::TryInto;
 use std::iter::Iterator;
 use std::net::Ipv4Addr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -183,6 +184,10 @@ impl ApiTester {
             chain: Some(chain.clone()),
             network_tx: Some(network_tx),
             network_globals: Some(Arc::new(network_globals)),
+            db_paths: Some(DBPaths {
+                chain_db: PathBuf::new(),
+                freezer_db: PathBuf::new(),
+            }),
             eth1_service: Some(eth1_service),
             log,
         });
@@ -1865,49 +1870,15 @@ impl ApiTester {
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
-    pub async fn test_get_lighthouse_system(self) -> Self {
-        self.client.get_lighthouse_system().await.unwrap();
-
-        self
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    pub async fn test_get_lighthouse_system_health(self) -> Self {
-        self.client.get_lighthouse_system_health().await.unwrap();
-
-        self
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    pub async fn test_get_lighthouse_system_drives(self) -> Self {
-        self.client.get_lighthouse_system_drives().await.unwrap();
+    pub async fn test_get_lighthouse_health(self) -> Self {
+        self.client.get_lighthouse_health().await.unwrap();
 
         self
     }
 
     #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
-    pub async fn test_get_lighthouse_system(self) -> Self {
-        self.client.get_lighthouse_system().await.unwrap_err();
-
-        self
-    }
-
-    #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
-    pub async fn test_get_lighthouse_system_health(self) -> Self {
-        self.client
-            .get_lighthouse_system_health()
-            .await
-            .unwrap_err();
-
-        self
-    }
-
-    #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
-    pub async fn test_get_lighthouse_system_drives(self) -> Self {
-        self.client
-            .get_lighthouse_system_drives()
-            .await
-            .unwrap_err();
+    pub async fn test_get_lighthouse_health(self) -> Self {
+        self.client.get_lighthouse_health().await.unwrap_err();
 
         self
     }
@@ -2427,11 +2398,7 @@ async fn get_validator_beacon_committee_subscriptions() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn lighthouse_endpoints() {
     ApiTester::new()
-        .test_get_lighthouse_system()
-        .await
-        .test_get_lighthouse_system_health()
-        .await
-        .test_get_lighthouse_system_drives()
+        .test_get_lighthouse_health()
         .await
         .test_get_lighthouse_syncing()
         .await

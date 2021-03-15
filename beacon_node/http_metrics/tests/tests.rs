@@ -22,8 +22,7 @@ async fn returns_200_ok() {
                 allow_origin: None,
             },
             chain: None,
-            db_path: None,
-            freezer_db_path: None,
+            db_paths: None,
             log,
         });
 
