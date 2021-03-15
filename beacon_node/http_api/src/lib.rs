@@ -7,14 +7,14 @@
 
 mod beacon_proposer_cache;
 mod block_id;
-mod broadcast_stream;
 mod metrics;
 mod state_id;
 mod validator_inclusion;
 
 use beacon_chain::{
     attestation_verification::SignatureVerifiedAttestation,
-    observed_operations::ObservationOutcome, validator_monitor::timestamp_now,
+    observed_operations::ObservationOutcome,
+    validator_monitor::{get_block_delay_ms, timestamp_now},
     AttestationError as AttnError, BeaconChain, BeaconChainError, BeaconChainTypes,
 };
 use beacon_proposer_cache::BeaconProposerCache;
@@ -36,7 +36,7 @@ use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio_stream::StreamExt;
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use types::{
     Attestation, AttestationDuty, AttesterSlashing, CloneConfig, CommitteeCache, Epoch, EthSpec,
     Hash256, ProposerSlashing, PublicKey, PublicKeyBytes, RelativeEpoch, SignedAggregateAndProof,
@@ -847,6 +847,15 @@ pub fn serve<T: BeaconChainTypes>(
                         PubsubMessage::BeaconBlock(Box::new(block.clone())),
                     )?;
 
+                    // Determine the delay after the start of the slot, register it with metrics.
+                    let delay =
+                        get_block_delay_ms(seen_timestamp, &block.message, &chain.slot_clock);
+                    metrics::observe_duration(
+                        &metrics::HTTP_API_BLOCK_BROADCAST_DELAY_TIMES,
+                        delay,
+                    );
+
+
                     match chain.process_block(block.clone()) {
                         Ok(root) => {
                             info!(
@@ -868,6 +877,33 @@ pub fn serve<T: BeaconChainTypes>(
                             chain
                                 .fork_choice()
                                 .map_err(warp_utils::reject::beacon_chain_error)?;
+
+                            // Perform some logging to inform users if their blocks are being produced
+                            // late.
+                            //
+                            // Check to see the thresholds are non-zero to avoid logging errors with small
+                            // slot times (e.g., during testing)
+                            let crit_threshold = chain.spec.seconds_per_slot / 3;
+                            let warn_threshold = chain.spec.seconds_per_slot / 6;
+                            if crit_threshold > 0 && delay.as_secs() > crit_threshold {
+                                crit!(
+                                    log,
+                                    "Block was broadcast too late";
+                                    "root" => ?root,
+                                    "slot" => block.slot(),
+                                    "delay_ms" => delay.as_millis(),
+                                    "msg" => "system may be overloaded, block likely to be orphaned",
+                                )
+                            } else if warn_threshold > 0 && delay.as_secs() > warn_threshold {
+                                warn!(
+                                    log,
+                                    "Block broadcast was delayed";
+                                    "root" => ?root,
+                                    "slot" => block.slot(),
+                                    "delay_ms" => delay.as_millis(),
+                                    "msg" => "system may be overloaded, block may be orphaned",
+                                )
+                            }
 
                             Ok(())
                         }
@@ -2463,23 +2499,22 @@ pub fn serve<T: BeaconChainTypes>(
                                 }
                             };
 
-                            receivers.push(broadcast_stream::BroadcastStream::new(receiver).map(
-                                |msg| {
-                                    match msg {
-                                        Ok(data) => Event::default()
-                                            .event(data.topic_name())
-                                            .json_data(data)
-                                            .map_err(|e| {
-                                                warp_utils::reject::server_sent_event_error(
-                                                    format!("{:?}", e),
-                                                )
-                                            }),
-                                        Err(e) => Err(warp_utils::reject::server_sent_event_error(
-                                            format!("{:?}", e),
-                                        )),
-                                    }
-                                },
-                            ));
+                            receivers.push(BroadcastStream::new(receiver).map(|msg| {
+                                match msg {
+                                    Ok(data) => Event::default()
+                                        .event(data.topic_name())
+                                        .json_data(data)
+                                        .map_err(|e| {
+                                            warp_utils::reject::server_sent_event_error(format!(
+                                                "{:?}",
+                                                e
+                                            ))
+                                        }),
+                                    Err(e) => Err(warp_utils::reject::server_sent_event_error(
+                                        format!("{:?}", e),
+                                    )),
+                                }
+                            }));
                         }
                     } else {
                         return Err(warp_utils::reject::custom_server_error(
