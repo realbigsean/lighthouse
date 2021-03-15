@@ -127,6 +127,14 @@ pub fn cli_app<'a, 'b>() -> App<'a, 'b> {
          * encryption (e.g., SSH tunnels).
          */
         .arg(
+            Arg::with_name("http-address")
+                .long("http-address")
+                .value_name("ADDRESS")
+                .help("Set the listen address for the VC HTTP server.")
+                .default_value("127.0.0.1")
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("http-port")
                 .long("http-port")
                 .value_name("PORT")

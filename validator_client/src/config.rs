@@ -180,6 +180,12 @@ impl Config {
             config.http_api.enabled = true;
         }
 
+        if let Some(address) = cli_args.value_of("http-address") {
+            config.http_api.listen_addr = address
+                .parse::<Ipv4Addr>()
+                .map_err(|_| "http-address is not a valid IPv4 address.")?;
+        }
+
         if let Some(port) = cli_args.value_of("http-port") {
             config.http_api.listen_port = port
                 .parse::<u16>()
