@@ -39,6 +39,8 @@ jobs:
         run: |
           echo $HOME
           ls -l /home
+          ls -l /usr/home/runner
+          export HOME=/usr/home/runner
       - uses: actions/checkout@v1
       - name: Run cargo vendor to make sure dependencies can be vendored for packaging, reproducibility and archival purpose
         run:  make vendor
