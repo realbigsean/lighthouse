@@ -37,6 +37,8 @@ jobs:
       steps:
       - name: Check home
         run: |
+          realpath $HOME
+          realpath /home/runner
           echo $CARGO_HOME
           ls -l $CARGO_HOME
           export CARGO_HOME=/home/runner
