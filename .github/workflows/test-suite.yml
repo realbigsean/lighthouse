@@ -41,10 +41,14 @@ jobs:
           realpath /home/runner
           echo $CARGO_HOME
           ls -l $CARGO_HOME
-          export CARGO_HOME=/home/runner
       - uses: actions/checkout@v1
+      - name: Get latest version of stable Rust
+        run: rustup update stable
       - name: Run cargo vendor to make sure dependencies can be vendored for packaging, reproducibility and archival purpose
-        run:  make vendor
+        run:  |
+          export CARGO_HOME=/home/runner/.cargo
+          make vendor
+
   release-tests-ubuntu:
     name: release-tests-ubuntu
     runs-on: ubuntu-latest
