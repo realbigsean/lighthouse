@@ -37,5 +37,5 @@ lighthouse_version = { path = "../common/lighthouse_version" }
 directory = { path = "../common/directory" }
 account_utils = { path = "../common/account_utils" }
 eth2_wallet = { path = "../crypto/eth2_wallet" }
-web3 = "0.14.0"
+web3 = { git = "https://github.com/tomusdrw/rust-web3.git", rev = "509b3bb0833e9c8e4d0e6afad4d349c4dc36b08c", default-features = false, features = ["http-rustls"] }
 eth1_test_rig = { path = "../testing/eth1_test_rig" }

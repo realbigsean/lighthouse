@@ -7,7 +7,7 @@ edition = "2018"
 [dev-dependencies]
 eth1_test_rig = { path = "../../testing/eth1_test_rig" }
 toml = "0.5.6"
-web3 = "0.14.0"
+web3 = { git = "https://github.com/tomusdrw/rust-web3.git", rev = "509b3bb0833e9c8e4d0e6afad4d349c4dc36b08c", default-features = false, features = ["http-rustls"] }
 sloggers = "1.0.1"
 environment = { path = "../../lighthouse/environment" }
 tokio-compat-02 = "0.1"
