@@ -89,6 +89,13 @@ impl Epoch {
         }
     }
 
+    /// Compute the sync committee period for an epoch.
+    pub fn sync_committee_period(&self, spec: &ChainSpec) -> Result<u64, ArithError> {
+        Ok(self
+            .safe_div(spec.epochs_per_sync_committee_period)?
+            .as_u64())
+    }
+
     pub fn slot_iter(&self, slots_per_epoch: u64) -> SlotIter {
         SlotIter {
             current_iteration: 0,

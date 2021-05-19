@@ -702,6 +702,24 @@ impl BeaconNodeHttpClient {
         self.get(path).await
     }
 
+    /// `POST beacon/pool/sync_committees`
+    pub async fn post_beacon_pool_sync_committee_signatures(
+        &self,
+        signatures: &[SyncCommitteeSignature],
+    ) -> Result<(), Error> {
+        let mut path = self.eth_path()?;
+
+        path.path_segments_mut()
+            .map_err(|()| Error::InvalidUrl(self.server.clone()))?
+            .push("beacon")
+            .push("pool")
+            .push("sync_committees");
+
+        self.post(path, &signatures).await?;
+
+        Ok(())
+    }
+
     /// `GET config/fork_schedule`
     pub async fn get_config_fork_schedule(&self) -> Result<GenericResponse<Vec<Fork>>, Error> {
         let mut path = self.eth_path()?;
@@ -1088,6 +1106,24 @@ impl BeaconNodeHttpClient {
                 Ok(bytes) => EventKind::from_sse_bytes(bytes.as_ref()),
                 Err(e) => Err(Error::Reqwest(e)),
             }))
+    }
+
+    /// `POST validator/duties/sync/{epoch}`
+    pub async fn post_validator_duties_sync(
+        &self,
+        epoch: Epoch,
+        indices: &[u64],
+    ) -> Result<GenericResponse<Vec<SyncDuty>>, Error> {
+        let mut path = self.eth_path()?;
+
+        path.path_segments_mut()
+            .map_err(|()| Error::InvalidUrl(self.server.clone()))?
+            .push("validator")
+            .push("duties")
+            .push("sync")
+            .push(&epoch.to_string());
+
+        self.post_with_response(path, &indices).await
     }
 }
 

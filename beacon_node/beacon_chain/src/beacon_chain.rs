@@ -42,7 +42,7 @@ use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::BeaconForkChoiceStore;
 use crate::BeaconSnapshot;
 use crate::{metrics, BeaconChainError};
-use eth2::types::{EventKind, SseBlock, SseFinalizedCheckpoint, SseHead};
+use eth2::types::{EventKind, SseBlock, SseFinalizedCheckpoint, SseHead, SyncDuty};
 use fork_choice::ForkChoice;
 use futures::channel::mpsc::Sender;
 use itertools::process_results;
@@ -1515,6 +1515,19 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 .insert_attester_slashing(attester_slashing, self.head_info()?.fork)
         }
         Ok(())
+    }
+
+    /// Attempt to obtain sync committee duties from the head.
+    pub fn sync_committee_duties_from_head(
+        &self,
+        epoch: Epoch,
+        validator_indices: &[u64],
+    ) -> Result<Vec<Option<SyncDuty>>, Error> {
+        self.with_head(move |head| {
+            head.beacon_state
+                .get_sync_committee_duties(epoch, validator_indices, &self.spec)
+                .map_err(Error::SyncDutiesError)
+        })
     }
 
     /// Attempt to verify and import a chain of blocks to `self`.

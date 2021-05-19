@@ -105,6 +105,10 @@ pub enum Error {
     ArithError(ArithError),
     MissingBeaconBlock(SignedBeaconBlockHash),
     MissingBeaconState(BeaconStateHash),
+    SyncCommitteeNotKnown {
+        current_epoch: Epoch,
+        epoch: Epoch,
+    },
 }
 
 /// Control whether an epoch-indexed field can be indexed at the next epoch or not.
@@ -252,7 +256,7 @@ where
     #[superstruct(only(Altair))]
     pub current_sync_committee: Arc<SyncCommittee<T>>,
     #[superstruct(only(Altair))]
-    pub next_sync_committee: SyncCommittee<T>,
+    pub next_sync_committee: Arc<SyncCommittee<T>>,
 
     // Caching (not in the spec)
     #[serde(skip_serializing, skip_deserializing)]
@@ -703,6 +707,28 @@ impl<T: EthSpec> BeaconState<T> {
         Ok(hash(&preimage))
     }
 
+    /// Get the already-built current or next sync committee from the state.
+    pub fn get_built_sync_committee(
+        &self,
+        epoch: Epoch,
+        spec: &ChainSpec,
+    ) -> Result<&Arc<SyncCommittee<T>>, Error> {
+        let sync_committee_period = epoch.sync_committee_period(spec)?;
+        let current_sync_committee_period = self.current_epoch().sync_committee_period(spec)?;
+        let next_sync_committee_period = current_sync_committee_period.safe_add(1)?;
+
+        if sync_committee_period == current_sync_committee_period {
+            self.current_sync_committee()
+        } else if sync_committee_period == next_sync_committee_period {
+            self.next_sync_committee()
+        } else {
+            Err(Error::SyncCommitteeNotKnown {
+                current_epoch: self.current_epoch(),
+                epoch,
+            })
+        }
+    }
+
     /// Get the sync committee for the current or next period by computing it from scratch.
     pub fn get_sync_committee(
         &self,
@@ -817,6 +843,33 @@ impl<T: EthSpec> BeaconState<T> {
             pubkeys: FixedVector::new(pubkeys)?,
             pubkey_aggregates: FixedVector::new(pubkey_aggregates)?,
         })
+    }
+
+    /// Get the sync committee duties for a list of validator indices.
+    ///
+    /// Will return a `SyncCommitteeNotKnown` error if the `epoch` is out of bounds with respect
+    /// to the current or next sync committee periods.
+    pub fn get_sync_committee_duties(
+        &self,
+        epoch: Epoch,
+        validator_indices: &[u64],
+        spec: &ChainSpec,
+    ) -> Result<Vec<Option<SyncDuty>>, Error> {
+        // FIXME(sproul): consider using cached indices
+        let sync_committee = self.get_built_sync_committee(epoch, spec)?;
+
+        validator_indices
+            .iter()
+            .map(|&validator_index| {
+                let pubkey = self.get_validator(validator_index as usize)?.pubkey.clone();
+
+                Ok(SyncDuty::from_sync_committee(
+                    validator_index,
+                    pubkey,
+                    sync_committee,
+                ))
+            })
+            .collect()
     }
 
     /// Get the canonical root of the `latest_block_header`, filling in its state root if necessary.
@@ -1510,7 +1563,7 @@ impl<T: EthSpec> BeaconState<T> {
             inactivity_scores,
             // Sync committees
             current_sync_committee: Arc::new(SyncCommittee::temporary()?), // not read
-            next_sync_committee: SyncCommittee::temporary()?,              // not read
+            next_sync_committee: Arc::new(SyncCommittee::temporary()?),    // not read
             // Caches
             committee_caches: mem::take(&mut pre.committee_caches),
             pubkey_cache: mem::take(&mut pre.pubkey_cache),
@@ -1521,11 +1574,13 @@ impl<T: EthSpec> BeaconState<T> {
         // Fill in sync committees
         post.as_altair_mut()?.current_sync_committee =
             Arc::new(post.get_sync_committee(post.current_epoch(), spec)?);
-        post.as_altair_mut()?.next_sync_committee = post.get_sync_committee(
-            post.current_epoch()
-                .safe_add(spec.epochs_per_sync_committee_period)?,
-            spec,
-        )?;
+        post.as_altair_mut()?.next_sync_committee = Arc::new(
+            post.get_sync_committee(
+                post.current_epoch()
+                    .safe_add(spec.epochs_per_sync_committee_period)?,
+                spec,
+            )?,
+        );
 
         *self = post;
 

@@ -99,6 +99,7 @@ pub trait EthSpec: 'static + Default + Sync + Send + Clone + Debug + PartialEq +
     /// The size of `sync_committees`.
     ///
     /// Must be set to `SyncCommitteeSize / SyncCommitteeSubnetCount`.
+    /// FIXME(sproul): this needs to go in v1.1.0-alpha.4
     type SyncCommitteeSubnetSize: Unsigned + Clone + Sync + Send + Debug + PartialEq;
 
     fn default_spec() -> ChainSpec;
