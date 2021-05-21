@@ -12,7 +12,8 @@ use tempfile::TempDir;
 use types::{
     graffiti::GraffitiString, Attestation, BeaconBlock, ChainSpec, Domain, Epoch, EthSpec, Fork,
     Graffiti, Hash256, Keypair, PublicKeyBytes, SelectionProof, Signature, SignedAggregateAndProof,
-    SignedBeaconBlock, SignedRoot, Slot, SyncCommitteeSignature, SyncSelectionProof,
+    SignedBeaconBlock, SignedContributionAndProof, SignedRoot, Slot, SyncCommitteeContribution,
+    SyncCommitteeSignature, SyncSelectionProof,
 };
 use validator_dir::ValidatorDir;
 
@@ -417,6 +418,27 @@ impl<T: SlotClock + 'static, E: EthSpec> ValidatorStore<T, E> {
             slot,
             beacon_block_root,
             validator_index,
+            &voting_keypair.sk,
+            &self.fork(),
+            self.genesis_validators_root,
+            &self.spec,
+        ))
+    }
+
+    pub fn produce_signed_contribution_and_proof(
+        &self,
+        aggregator_index: u64,
+        aggregator_pubkey: &PublicKeyBytes,
+        contribution: SyncCommitteeContribution<E>,
+        selection_proof: SyncSelectionProof,
+    ) -> Option<SignedContributionAndProof<E>> {
+        let validators = self.validators.read();
+        let voting_keypair = validators.voting_keypair(aggregator_pubkey)?;
+
+        Some(SignedContributionAndProof::from_aggregate(
+            aggregator_index,
+            contribution,
+            Some(selection_proof),
             &voting_keypair.sk,
             &self.fork(),
             self.genesis_validators_root,

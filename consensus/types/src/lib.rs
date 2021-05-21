@@ -127,7 +127,7 @@ pub use crate::slot_epoch::{Epoch, Slot};
 pub use crate::subnet_id::SubnetId;
 pub use crate::sync_aggregate::SyncAggregate;
 pub use crate::sync_committee::SyncCommittee;
-pub use crate::sync_committee_contribution::SyncCommitteeContribution;
+pub use crate::sync_committee_contribution::{SyncCommitteeContribution, SyncContributionData};
 pub use crate::sync_committee_signature::SyncCommitteeSignature;
 pub use crate::sync_committee_signing_data::SyncAggregatorSelectionData;
 pub use crate::sync_duty::SyncDuty;

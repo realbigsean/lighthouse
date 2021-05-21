@@ -5,10 +5,14 @@ use eth2::types::BlockId;
 use futures::future::FutureExt;
 use slog::{crit, debug, error, info, trace};
 use slot_clock::SlotClock;
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 use tokio::time::{sleep, sleep_until, Duration, Instant};
-use types::{ChainSpec, EthSpec, Hash256, Slot, SyncDuty, SyncSelectionProof};
+use types::{
+    ChainSpec, EthSpec, Hash256, PublicKeyBytes, Slot, SyncContributionData, SyncDuty,
+    SyncSelectionProof,
+};
 
 pub struct SyncCommitteeService<T: SlotClock + 'static, E: EthSpec> {
     inner: Arc<Inner<T, E>>,
@@ -153,10 +157,21 @@ impl<T: SlotClock + 'static, E: EthSpec> SyncCommitteeService<T, E> {
             self.clone()
                 .publish_sync_committee_signatures(slot, block_root, validator_duties)
                 .map(|_| ()),
-            "sync_committee_publish",
+            "sync_committee_signature_publish",
         );
 
-        // FIXME(sproul): spawn one task per subnet to publish aggregates
+        let aggregators = slot_duties.aggregators;
+        self.inner.context.executor.spawn(
+            self.clone()
+                .publish_sync_committee_aggregates(
+                    slot,
+                    block_root,
+                    aggregators,
+                    aggregate_production_instant,
+                )
+                .map(|_| ()),
+            "sync_committee_aggregate_publish",
+        );
 
         Ok(())
     }
@@ -221,117 +236,122 @@ impl<T: SlotClock + 'static, E: EthSpec> SyncCommitteeService<T, E> {
         Ok(())
     }
 
-    /*
-    async fn produce_and_publish_contributions(
-        &self,
+    async fn publish_sync_committee_aggregates(
+        self,
         slot: Slot,
-        subnet_id: u64,
         beacon_block_root: Hash256,
-        validator_duties: &[(SyncDuty, Option<SyncSelectionProof>)],
-    ) -> Result<Option<AttestationData>, String> {
+        aggregators: HashMap<u64, Vec<(u64, PublicKeyBytes, SyncSelectionProof)>>,
+        aggregate_instant: Instant,
+    ) {
+        for (subnet_id, subnet_aggregators) in aggregators {
+            let service = self.clone();
+            self.inner.context.executor.spawn(
+                service
+                    .publish_sync_committee_aggregate_for_subnet(
+                        slot,
+                        beacon_block_root,
+                        subnet_id,
+                        subnet_aggregators,
+                        aggregate_instant,
+                    )
+                    .map(|_| ()),
+                "sync_committee_aggregate_publish_subnet",
+            );
+        }
+    }
+
+    async fn publish_sync_committee_aggregate_for_subnet(
+        self,
+        slot: Slot,
+        beacon_block_root: Hash256,
+        subnet_id: u64,
+        subnet_aggregators: Vec<(u64, PublicKeyBytes, SyncSelectionProof)>,
+        aggregate_instant: Instant,
+    ) -> Result<(), ()> {
+        sleep_until(aggregate_instant).await;
+
         let log = self.context.log();
 
-        if validator_duties.is_empty() {
-            return Ok(None);
-        }
-
-        let current_epoch = self
-            .slot_clock
-            .now()
-            .ok_or("Unable to determine current slot from clock")?
-            .epoch(E::slots_per_epoch());
-
-        let attestation_data = self
+        let contribution = self
             .beacon_nodes
             .first_success(RequireSynced::No, |beacon_node| async move {
+                let sync_contribution_data = SyncContributionData {
+                    slot,
+                    beacon_block_root,
+                    subcommittee_index: subnet_id,
+                };
+
                 beacon_node
-                    .get_validator_attestation_data(slot, committee_index)
+                    .get_validator_sync_committee_contribution::<E>(&sync_contribution_data)
                     .await
-                    .map_err(|e| format!("Failed to produce attestation data: {:?}", e))
-                    .map(|result| result.data)
             })
             .await
-            .map_err(|e| e.to_string())?;
-
-        let mut attestations = Vec::with_capacity(validator_duties.len());
-
-        for duty_and_proof in validator_duties {
-            let duty = &duty_and_proof.duty;
-
-            // Ensure that the attestation matches the duties.
-            #[allow(clippy::suspicious_operation_groupings)]
-            if duty.slot != attestation_data.slot || duty.committee_index != attestation_data.index
-            {
+            .map_err(|e| {
                 crit!(
                     log,
-                    "Inconsistent validator duties during signing";
-                    "validator" => ?duty.pubkey,
-                    "duty_slot" => duty.slot,
-                    "attestation_slot" => attestation_data.slot,
-                    "duty_index" => duty.committee_index,
-                    "attestation_index" => attestation_data.index,
-                );
-                continue;
-            }
-
-            let mut attestation = Attestation {
-                aggregation_bits: BitList::with_capacity(duty.committee_length as usize).unwrap(),
-                data: attestation_data.clone(),
-                signature: AggregateSignature::infinity(),
-            };
-
-            if self
-                .validator_store
-                .sign_attestation(
-                    &duty.pubkey,
-                    duty.validator_committee_index as usize,
-                    &mut attestation,
-                    current_epoch,
+                    "Failed to produce sync contribution";
+                    "slot" => slot,
+                    "beacon_block_root" => ?beacon_block_root,
+                    "error" => %e,
                 )
-                .is_some()
-            {
-                attestations.push(attestation);
-            } else {
+            })?
+            .ok_or_else(|| {
                 crit!(
                     log,
-                    "Failed to sign attestation";
-                    "committee_index" => committee_index,
-                    "slot" => slot.as_u64(),
+                    "No aggregate contribution found";
+                    "slot" => slot,
+                    "beacon_block_root" => ?beacon_block_root,
                 );
-                continue;
-            }
-        }
+            })?
+            .data;
 
-        let attestations_slice = attestations.as_slice();
-        match self
-            .beacon_nodes
-            .first_success(RequireSynced::No, |beacon_node| async move {
+        // Make `SignedContributionAndProof`s
+        let signed_contributions = subnet_aggregators
+            .into_iter()
+            .filter_map(|(aggregator_index, aggregator_pk, selection_proof)| {
+                self.validator_store
+                    .produce_signed_contribution_and_proof(
+                        aggregator_index,
+                        &aggregator_pk,
+                        contribution.clone(),
+                        selection_proof,
+                    )
+                    .or_else(|| {
+                        crit!(
+                            log,
+                            "Unable to sign sync committee contribution";
+                            "slot" => slot,
+                        );
+                        None
+                    })
+            })
+            .collect::<Vec<_>>();
+
+        // Publish to the beacon node.
+        let signed_contributions_slice = &signed_contributions;
+        self.beacon_nodes
+            .first_success(RequireSynced::Yes, |beacon_node| async move {
                 beacon_node
-                    .post_beacon_pool_attestations(attestations_slice)
+                    .post_validator_contribution_and_proofs(signed_contributions_slice)
                     .await
             })
             .await
-        {
-            Ok(()) => info!(
-                log,
-                "Successfully published attestations";
-                "count" => attestations.len(),
-                "head_block" => ?attestation_data.beacon_block_root,
-                "committee_index" => attestation_data.index,
-                "slot" => attestation_data.slot.as_u64(),
-                "type" => "unaggregated",
-            ),
-            Err(e) => error!(
-                log,
-                "Unable to publish attestations";
-                "error" => %e,
-                "committee_index" => attestation_data.index,
-                "slot" => slot.as_u64(),
-                "type" => "unaggregated",
-            ),
-        }
+            .map_err(|e| {
+                error!(
+                    log,
+                    "Unable to publish sync committee signatures";
+                    "slot" => slot,
+                    "error" => %e,
+                );
+            })?;
 
-        Ok(Some(attestation_data))
+        info!(
+            log,
+            "Publishing signed contribution and proof";
+            "contribution" => ?contribution,
+            "slot" => slot,
+        );
+
+        Ok(())
     }
-    */
 }

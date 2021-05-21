@@ -944,6 +944,16 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .get_by_slot_and_root(slot, attestation_data_root)
     }
 
+    /// Return an aggregated `SyncCommitteeContribution` matching the given `root`.
+    pub fn get_aggregated_sync_committee_contribution(
+        &self,
+        sync_contribution_data: &SyncContributionData,
+    ) -> Option<SyncCommitteeContribution<T::EthSpec>> {
+        self.naive_sync_aggregation_pool
+            .read()
+            .get(sync_contribution_data)
+    }
+
     /// Produce an unaggregated `Attestation` that is valid for the given `slot` and `index`.
     ///
     /// The produced `Attestation` will not be valid until it has been signed by exactly one

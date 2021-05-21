@@ -1,13 +1,18 @@
-//! Contains the handlers for sync committee endpoints.
-use beacon_chain::sync_committee_verification::VerifiedSyncSignature;
+//! Handlers for sync committee endpoints.
+
+use beacon_chain::sync_committee_verification::{
+    Error as SyncCommitteeError, VerifiedSyncSignature,
+};
 use beacon_chain::{
     BeaconChain, BeaconChainError, BeaconChainTypes, StateSkipConfig,
     MAXIMUM_GOSSIP_CLOCK_DISPARITY,
 };
 use eth2::types::{self as api_types};
-use slog::{error, Logger};
+use slog::{error, warn, Logger};
 use slot_clock::SlotClock;
-use types::{BeaconStateError, Epoch, EthSpec, SyncCommitteeSignature, SyncDuty};
+use types::{
+    BeaconStateError, Epoch, EthSpec, SignedContributionAndProof, SyncCommitteeSignature, SyncDuty,
+};
 
 /// The struct that is returned to the requesting HTTP client.
 type SyncDuties = api_types::GenericResponse<Vec<SyncDuty>>;
@@ -138,5 +143,70 @@ pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
             "error processing sync committee signatures".to_string(),
             failures,
         ))
+    }
+}
+
+/// Receive signed contributions and proofs, storing them in the op pool and broadcasting.
+pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
+    signed_contribution_and_proofs: Vec<SignedContributionAndProof<T::EthSpec>>,
+    chain: &BeaconChain<T>,
+    log: Logger,
+) -> Result<(), warp::reject::Rejection> {
+    let mut verified_contributions = Vec::with_capacity(signed_contribution_and_proofs.len());
+    let mut failures = vec![];
+
+    // Verify contributions & broadcast to the network.
+    for (index, contribution) in signed_contribution_and_proofs.into_iter().enumerate() {
+        let aggregator_index = contribution.message.aggregator_index;
+        let subcommittee_index = contribution.message.contribution.subcommittee_index;
+        let contribution_slot = contribution.message.contribution.slot;
+
+        match chain.verify_sync_contribution_for_gossip(contribution) {
+            Ok(verified_contribution) => {
+                // FIXME(sproul): publish to network
+                // FIXME(sproul): notify validator monitor
+                verified_contributions.push((index, verified_contribution));
+            }
+            // If we already know the contribution, don't broadcast it or attempt to
+            // further verify it. Return success.
+            Err(SyncCommitteeError::AttestationAlreadyKnown(_)) => continue,
+            Err(e) => {
+                error!(
+                    log,
+                    "Failure verifying signed contribution and proof";
+                    "error" => ?e,
+                    "request_index" => index,
+                    "aggregator_index" => aggregator_index,
+                    "subcommittee_index" => subcommittee_index,
+                    "contribution_slot" => contribution_slot,
+                );
+                failures.push(api_types::Failure::new(
+                    index,
+                    format!("Verification: {:?}", e),
+                ));
+            }
+        }
+    }
+
+    // Add to the block inclusion pool.
+    for (index, verified_contribution) in verified_contributions {
+        if let Err(e) = chain.add_contribution_to_block_inclusion_pool(verified_contribution) {
+            warn!(
+                log,
+                "Could not add verified sync contribution to the inclusion pool";
+                "error" => ?e,
+                "request_index" => index,
+            );
+            failures.push(api_types::Failure::new(index, format!("Op pool: {:?}", e)));
+        }
+    }
+
+    if !failures.is_empty() {
+        Err(warp_utils::reject::indexed_bad_request(
+            "error processing contribution and proofs".to_string(),
+            failures,
+        ))
+    } else {
+        Ok(())
     }
 }

@@ -1,11 +1,11 @@
 use crate::duties_service::{DutiesService, Error};
 use itertools::Itertools;
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use slog::{crit, info, warn};
+use slog::{crit, debug, info, warn};
 use slot_clock::SlotClock;
 use std::collections::HashMap;
 use std::sync::Arc;
-use types::{ChainSpec, Epoch, EthSpec, Slot, SyncDuty, SyncSelectionProof};
+use types::{ChainSpec, Epoch, EthSpec, PublicKeyBytes, Slot, SyncDuty, SyncSelectionProof};
 
 pub struct SyncDutiesMap {
     /// Map from sync committee period to duties for members of that sync committee.
@@ -38,7 +38,7 @@ pub struct SlotDuties {
     /// one `SyncCommitteeSignature` per validator (recall a validator may be part of multiple
     pub duties: Vec<SyncDuty>,
     /// Map from subnet ID to validator index and selection proof of each aggregator.
-    pub aggregators: HashMap<u64, Vec<(u64, SyncSelectionProof)>>,
+    pub aggregators: HashMap<u64, Vec<(u64, PublicKeyBytes, SyncSelectionProof)>>,
 }
 
 impl Default for SyncDutiesMap {
@@ -118,10 +118,11 @@ impl SyncDutiesMap {
 
                 for subnet_id in subnet_ids {
                     if let Some(proof) = proofs.get(&(duty_slot, subnet_id)) {
-                        aggregators
-                            .entry(subnet_id)
-                            .or_insert_with(Vec::new)
-                            .push((validator_duty.duty.validator_index, proof.clone()));
+                        aggregators.entry(subnet_id).or_insert_with(Vec::new).push((
+                            validator_duty.duty.validator_index,
+                            validator_duty.duty.pubkey,
+                            proof.clone(),
+                        ));
                     }
                 }
             });
@@ -353,7 +354,7 @@ pub fn fill_in_aggregation_proofs<T: SlotClock + 'static, E: EthSpec>(
                             .ok()?;
 
                         if is_aggregator {
-                            info!(
+                            debug!(
                                 log,
                                 "Validator is sync aggregator";
                                 "validator_index" => duty.validator_index,
