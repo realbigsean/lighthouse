@@ -28,8 +28,7 @@ use types::{
 
 pub type E = MainnetEthSpec;
 
-/// The validator count needs to be relatively high compared to other tests to ensure that we can
-/// have committees where _some_ validators are aggregators but not _all_.
+//FIXME(sean): is this unnecessarily high?
 pub const VALIDATOR_COUNT: usize = 256;
 
 lazy_static! {
@@ -39,10 +38,12 @@ lazy_static! {
 
 /// Returns a beacon chain harness.
 fn get_harness(validator_count: usize) -> BeaconChainHarness<EphemeralHarnessType<E>> {
-    let harness = BeaconChainHarness::new_with_store_config(
+    let mut spec = E::default_spec();
+    spec.altair_fork_slot = Some(Slot::new(0));
+    let harness = BeaconChainHarness::new(
         MainnetEthSpec,
+        Some(spec),
         KEYPAIRS[0..validator_count].to_vec(),
-        StoreConfig::default(),
     );
 
     harness.advance_slot();
@@ -50,7 +51,7 @@ fn get_harness(validator_count: usize) -> BeaconChainHarness<EphemeralHarnessTyp
     harness
 }
 
-/// Returns an attestation that is valid for some slot in the given `chain`.
+/// Returns a sync signature that is valid for some slot in the given `chain`.
 ///
 /// Also returns some info about who created it.
 fn get_valid_sync_signature(
@@ -67,20 +68,13 @@ fn get_valid_sync_signature(
         .chain
         .head_beacon_state()
         .expect("should get head state");
-    let pubkey = head_state
-        .as_altair()
-        .unwrap()
-        .current_sync_committee
-        .pubkeys[0];
-    let validator_index = harness.chain.validator_index(&pubkey).unwrap().unwrap();
-
     let head_block_root = harness
         .chain
         .head()
         .expect("should get head state")
         .beacon_block_root;
     let (signature, subcommittee_position) = harness
-        .make_sync_signatures(&[validator_index], &head_state, head_block_root, slot)
+        .make_sync_signatures(&head_state, head_block_root, slot)
         .get(0)
         .unwrap()
         .get(0)
@@ -89,9 +83,11 @@ fn get_valid_sync_signature(
 
     (
         signature.clone(),
-        validator_index,
+        signature.validator_index as usize,
         subcommittee_position,
-        harness.validator_keypairs[validator_index].sk.clone(),
+        harness.validator_keypairs[signature.validator_index as usize]
+            .sk
+            .clone(),
         SyncSubnetId::new(0),
     )
 }
@@ -105,28 +101,12 @@ fn get_valid_sync_contribution(
         .head_beacon_state()
         .expect("should get head state");
 
-    let sync_subcommittee_size = E::sync_committee_size()
-        .safe_div(SYNC_COMMITTEE_SUBNET_COUNT as usize)
-        .unwrap();
-
-    let pubkeys = head_state
-        .as_altair()
-        .unwrap()
-        .current_sync_committee
-        .pubkeys
-        .clone();
-    let indices = pubkeys[0..sync_subcommittee_size]
-        .iter()
-        .map(|pubkey| harness.chain.validator_index(&pubkey).unwrap().unwrap())
-        .collect::<Vec<_>>();
-
     let head_block_root = harness
         .chain
         .head()
         .expect("should get head state")
         .beacon_block_root;
-    let sync_contributions =
-        harness.make_sync_contributions(indices.as_slice(), &head_state, head_block_root, slot);
+    let sync_contributions = harness.make_sync_contributions(&head_state, head_block_root, slot);
 
     let (_, contribution_opt) = sync_contributions.get(0).unwrap();
     let contribution = contribution_opt.as_ref().cloned().unwrap();
@@ -140,7 +120,7 @@ fn get_valid_sync_contribution(
     )
 }
 
-/// Returns a proof and index for a validator that is **not** an aggregator for the current sync period
+/// Returns a proof and index for a validator that is **not** an aggregator for the current sync period.
 fn get_non_aggregator(
     harness: &BeaconChainHarness<EphemeralHarnessType<E>>,
     slot: Slot,
@@ -188,6 +168,8 @@ fn get_non_aggregator(
 fn aggregated_gossip_verification() {
     let harness = get_harness(VALIDATOR_COUNT);
 
+    //FIXME(sean): could maybe reduce.
+
     // Extend the chain out a few epochs so we have some chain depth to play with.
     harness.extend_chain(
         MainnetEthSpec::slots_per_epoch() as usize * 3 - 1,
@@ -195,7 +177,7 @@ fn aggregated_gossip_verification() {
         AttestationStrategy::AllValidators,
     );
 
-    // Advance into a slot where there have not been blocks or attestations produced.
+    // Advance into a slot where there have not been blocks or sync signatures produced.
     harness.advance_slot();
 
     let current_slot = harness.chain.slot().expect("should get slot");
@@ -302,8 +284,9 @@ fn aggregated_gossip_verification() {
      * The following test ensures:
      *
      * The attestation has participants.
-     * Note: this isn't in the spec
+     * Fixme(sean): this isn't in the spec
      */
+
     assert_invalid!(
         "aggregate with no participants",
         {
@@ -319,8 +302,6 @@ fn aggregated_gossip_verification() {
 
     /*
      * This test ensures:
-     *
-     * Spec v0.12.1
      *
      * The aggregator signature, signed_aggregate_and_proof.signature, is valid.
      */
@@ -458,7 +439,6 @@ fn aggregated_gossip_verification() {
         .chain
         .verify_sync_contribution_for_gossip(valid_aggregate.clone())
         .unwrap();
-
 
     /*
      * The following test ensures:

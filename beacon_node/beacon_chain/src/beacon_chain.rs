@@ -16,7 +16,7 @@ use crate::head_tracker::HeadTracker;
 use crate::migrate::BackgroundMigrator;
 use crate::naive_aggregation_pool::{
     AggregatedAttestationMap, Error as NaiveAggregationError, NaiveAggregationPool,
-    SyncAggregateMap,
+    SyncContributionAggregateMap,
 };
 use crate::observed_aggregates::{
     Error as AttestationObservationError, ObservedAggregateAttestations, ObservedSyncAggregates,
@@ -224,7 +224,7 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     ///
     /// This pool accepts `SyncCommitteeContribution` objects that only have one aggregation bit set and provides
     /// a method to get an aggregated `SyncCommitteeContribution` for some `SyncCommitteeContributionData`.
-    pub naive_sync_aggregation_pool: RwLock<NaiveAggregationPool<SyncAggregateMap<T::EthSpec>>>,
+    pub naive_sync_aggregation_pool: RwLock<NaiveAggregationPool<SyncContributionAggregateMap<T::EthSpec>>>,
     /// Contains a store of attestations which have been observed by the beacon chain.
     pub(crate) observed_attestations: RwLock<ObservedAggregateAttestations<T::EthSpec>>,
     /// Contains a store of sync contributions which have been observed by the beacon chain.
@@ -1123,7 +1123,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             metrics::start_timer(&metrics::UNAGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES);
 
         VerifiedSyncSignature::verify(sync_signature, subnet_id, self)
-        //TODO: verify events in the api spec
+        //FIXME(sean): verify events in the api spec
 
         //     .map(
         //     |v| {
@@ -1154,7 +1154,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         } else {
             banana
         }
-        //TODO: verify events in the api spec
+        //FIXME(sean): verify events in the api spec
 
         //     .map(|v| {
         //     // This method is called for API and gossip attestations, so this covers all aggregated attestation events
@@ -1567,6 +1567,14 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .collect::<Vec<_>>();
 
         for (i, block) in chain_segment.into_iter().enumerate() {
+            // Ensure the block is the correct structure for the fork at `block.slot()`.
+            if let Err(e) = block.fork_name(&self.spec) {
+                return ChainSegmentResult::Failed {
+                    imported_blocks,
+                    error: BlockError::InconsistentFork(e),
+                };
+            }
+
             let block_root = get_block_root(&block);
 
             if let Some((child_parent_root, child_slot)) = children.get(i) {

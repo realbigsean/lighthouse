@@ -1,8 +1,4 @@
-use crate::{
-    BeaconBlock, BeaconBlockAltair, BeaconBlockBase, BeaconBlockRef, BeaconBlockRefMut, ChainSpec,
-    Domain, EthSpec, Fork, Hash256, PublicKey, SignedBeaconBlockHeader, SignedRoot, SigningData,
-    Slot,
-};
+use crate::*;
 use bls::Signature;
 use serde_derive::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
@@ -70,15 +66,34 @@ pub struct SignedBeaconBlock<E: EthSpec> {
 }
 
 impl<E: EthSpec> SignedBeaconBlock<E> {
+    /// Returns the name of the fork pertaining to `self`.
+    ///
+    /// Will return an `Err` if `self` has been instantiated to a variant conflicting with the fork
+    /// dictated by `self.slot()`.
+    pub fn fork_name(&self, spec: &ChainSpec) -> Result<ForkName, InconsistentFork> {
+        let fork_at_slot = spec.fork_name_at_slot(self.slot());
+        let object_fork = match self {
+            SignedBeaconBlock::Base { .. } => ForkName::Base,
+            SignedBeaconBlock::Altair { .. } => ForkName::Altair,
+        };
+
+        if fork_at_slot == object_fork {
+            Ok(object_fork)
+        } else {
+            Err(InconsistentFork {
+                fork_at_slot,
+                object_fork,
+            })
+        }
+    }
+
     /// SSZ decode.
     pub fn from_ssz_bytes(bytes: &[u8], spec: &ChainSpec) -> Result<Self, ssz::DecodeError> {
         // We need to use the slot-switching `from_ssz_bytes` of `BeaconBlock`, which doesn't
         // compose with the other SSZ utils, so we duplicate some parts of `ssz_derive` here.
         let mut builder = ssz::SszDecoderBuilder::new(bytes);
 
-        // Register the message type as `BeaconBlockBase`, even though that isn't accurate.
-        // Really we just need some variable-length type to provide here.
-        builder.register_type::<BeaconBlockBase<E>>()?;
+        builder.register_anonymous_variable_length_item()?;
         builder.register_type::<Signature>()?;
 
         let mut decoder = builder.build()?;
@@ -143,6 +158,12 @@ impl<E: EthSpec> SignedBeaconBlock<E> {
         genesis_validators_root: Hash256,
         spec: &ChainSpec,
     ) -> bool {
+        // Refuse to verify the signature of a block if its structure does not match the fork at
+        // `self.slot()`.
+        if self.fork_name(spec).is_err() {
+            return false;
+        }
+
         let domain = spec.get_domain(
             self.slot().epoch(E::slots_per_epoch()),
             Domain::BeaconProposer,

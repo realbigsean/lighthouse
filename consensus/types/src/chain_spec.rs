@@ -1,7 +1,7 @@
 //! This file contains several different representations of the beacon chain configuration
 //! parameters.
 //!
-//! Arguably the most import of these is `ChainSpec`, which is used throughout Lighthouse as the
+//! Arguably the most important of these is `ChainSpec`, which is used throughout Lighthouse as the
 //! source-of-truth regarding spec-level configuration.
 //!
 //! The other types exist for interoperability with other systems. The `StandardConfig` is an object
@@ -179,6 +179,14 @@ impl ChainSpec {
     /// always be the case in the future, though.
     pub fn next_fork_epoch(&self) -> Option<Epoch> {
         None
+    }
+
+    /// Returns the name of the fork which is active at `slot`.
+    pub fn fork_name_at_slot(&self, slot: Slot) -> ForkName {
+        match self.altair_fork_slot {
+            Some(fork_slot) if slot >= fork_slot => ForkName::Altair,
+            _ => ForkName::Base,
+        }
     }
 
     /// Get the domain number, unmodified by the fork.
