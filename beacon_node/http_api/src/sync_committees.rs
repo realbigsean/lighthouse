@@ -169,7 +169,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
             }
             // If we already know the contribution, don't broadcast it or attempt to
             // further verify it. Return success.
-            Err(SyncCommitteeError::AttestationAlreadyKnown(_)) => continue,
+            Err(SyncCommitteeError::SyncContributionAlreadyKnown(_)) => continue,
             Err(e) => {
                 error!(
                     log,

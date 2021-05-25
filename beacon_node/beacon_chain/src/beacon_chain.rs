@@ -2256,6 +2256,18 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let proposer_index = state.get_beacon_proposer_index(state.slot(), &self.spec)? as u64;
         let voluntary_exits = self.op_pool.get_voluntary_exits(&state, &self.spec).into();
 
+        let sync_aggregate = self
+            .op_pool
+            .get_sync_aggregate(&state, &self.spec)
+            .unwrap_or_else(|| {
+                warn!(
+                    self.log,
+                    "Producing block with no sync contributions";
+                    "slot" => state.slot(),
+                );
+                SyncAggregate::new()
+            });
+
         let inner_block = match state {
             BeaconState::Base(_) => BeaconBlock::Base(BeaconBlockBase {
                 slot,
@@ -2287,8 +2299,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                     attestations,
                     deposits,
                     voluntary_exits,
-                    // FIXME(altair): put a sync aggregate from the pool here (once implemented)
-                    sync_aggregate: SyncAggregate::new(),
+                    sync_aggregate,
                 },
             }),
         };
