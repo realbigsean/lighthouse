@@ -330,7 +330,7 @@ impl<T: SlotClock + 'static, E: EthSpec> SyncCommitteeService<T, E> {
         // Publish to the beacon node.
         let signed_contributions_slice = &signed_contributions;
         self.beacon_nodes
-            .first_success(RequireSynced::Yes, |beacon_node| async move {
+            .first_success(RequireSynced::No, |beacon_node| async move {
                 beacon_node
                     .post_validator_contribution_and_proofs(signed_contributions_slice)
                     .await
@@ -339,7 +339,7 @@ impl<T: SlotClock + 'static, E: EthSpec> SyncCommitteeService<T, E> {
             .map_err(|e| {
                 error!(
                     log,
-                    "Unable to publish sync committee signatures";
+                    "Unable to publish signed contributions and proofs";
                     "slot" => slot,
                     "error" => %e,
                 );
@@ -347,7 +347,7 @@ impl<T: SlotClock + 'static, E: EthSpec> SyncCommitteeService<T, E> {
 
         info!(
             log,
-            "Publishing signed contribution and proof";
+            "Successfully published signed contributions";
             "contribution" => ?contribution,
             "slot" => slot,
         );
