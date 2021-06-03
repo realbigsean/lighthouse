@@ -37,6 +37,7 @@ jobs:
       steps:
       - name: Check home
         run: |
+          echo $HOME
           realpath $HOME
           realpath /home/runner
           echo $CARGO_HOME
@@ -46,6 +47,7 @@ jobs:
         run: rustup update stable
       - name: Run cargo vendor to make sure dependencies can be vendored for packaging, reproducibility and archival purpose
         run:  |
+          export HOME=/home/runner
           export CARGO_HOME=/home/runner/.cargo
           make vendor
 
