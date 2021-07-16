@@ -105,6 +105,8 @@ pub fn cli_app<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name(STDIN_INPUTS_FLAG)
+                .takes_value(false)
+                .hidden(cfg!(windows))
                 .long(STDIN_INPUTS_FLAG)
                 .help("If present, read all user inputs from stdin instead of tty."),
         )
@@ -118,7 +120,8 @@ pub fn cli_run<T: EthSpec>(
     let spec = env.core_context().eth2_config.spec;
 
     let name: Option<String> = clap_utils::parse_optional(matches, WALLET_NAME_FLAG)?;
-    let stdin_inputs = matches.is_present(STDIN_INPUTS_FLAG);
+    let stdin_inputs = cfg!(windows) || matches.is_present(STDIN_INPUTS_FLAG);
+
     let wallet_base_dir = if matches.value_of("datadir").is_some() {
         let path: PathBuf = clap_utils::parse_required(matches, "datadir")?;
         path.join(DEFAULT_WALLET_DIR)
@@ -136,6 +139,18 @@ pub fn cli_run<T: EthSpec>(
         .unwrap_or(spec.max_effective_balance);
     let count: Option<usize> = clap_utils::parse_optional(matches, COUNT_FLAG)?;
     let at_most: Option<usize> = clap_utils::parse_optional(matches, AT_MOST_FLAG)?;
+
+    // The command will always fail if the wallet dir does not exist.
+    if !wallet_base_dir.exists() {
+        return Err(format!(
+            "No wallet directory at {:?}. Use the `lighthouse --network {} {} {} {}` command to create a wallet",
+            wallet_base_dir,
+            matches.value_of("network").unwrap_or("<NETWORK>"),
+            crate::CMD,
+            crate::wallet::CMD,
+            crate::wallet::create::CMD
+        ));
+    }
 
     ensure_dir_exists(&validator_dir)?;
     ensure_dir_exists(&secrets_dir)?;
@@ -217,11 +232,11 @@ pub fn cli_run<T: EthSpec>(
         })?;
 
         slashing_protection
-            .register_validator(&voting_pubkey)
+            .register_validator(voting_pubkey.compress())
             .map_err(|e| {
                 format!(
                     "Error registering validator {}: {:?}",
-                    voting_pubkey.to_hex_string(),
+                    voting_pubkey.as_hex_string(),
                     e
                 )
             })?;
@@ -235,7 +250,7 @@ pub fn cli_run<T: EthSpec>(
             .build()
             .map_err(|e| format!("Unable to build validator directory: {:?}", e))?;
 
-        println!("{}/{}\t{}", i + 1, n, voting_pubkey.to_hex_string());
+        println!("{}/{}\t{}", i + 1, n, voting_pubkey.as_hex_string());
     }
 
     Ok(())

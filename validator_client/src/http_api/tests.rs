@@ -11,12 +11,10 @@ use account_utils::{
 };
 use deposit_contract::decode_eth1_tx_data;
 use environment::null_logger;
-use eth2::{
-    lighthouse_vc::{http_client::ValidatorClientHttpClient, types::*},
-    Url,
-};
+use eth2::lighthouse_vc::{http_client::ValidatorClientHttpClient, types::*};
 use eth2_keystore::KeystoreBuilder;
 use parking_lot::RwLock;
+use sensitive_url::SensitiveUrl;
 use slashing_protection::{SlashingDatabase, SLASHING_PROTECTION_FILENAME};
 use slot_clock::TestingSlotClock;
 use std::marker::PhantomData;
@@ -33,7 +31,7 @@ type E = MainnetEthSpec;
 struct ApiTester {
     client: ValidatorClientHttpClient,
     initialized_validators: Arc<RwLock<InitializedValidators>>,
-    url: Url,
+    url: SensitiveUrl,
     _server_shutdown: oneshot::Sender<()>,
     _validator_dir: TempDir,
 }
@@ -117,7 +115,7 @@ impl ApiTester {
 
         tokio::spawn(async { server.await });
 
-        let url = Url::parse(&format!(
+        let url = SensitiveUrl::parse(&format!(
             "http://{}:{}",
             listening_socket.ip(),
             listening_socket.port()
@@ -152,7 +150,8 @@ impl ApiTester {
     pub async fn test_get_lighthouse_spec(self) -> Self {
         let result = self.client.get_lighthouse_spec().await.unwrap().data;
 
-        let expected = YamlConfig::from_spec::<E>(&E::default_spec());
+        let mut expected = ConfigAndPreset::from_chain_spec::<E>(&E::default_spec());
+        expected.make_backwards_compat(&E::default_spec());
 
         assert_eq!(result, expected);
 
@@ -210,6 +209,7 @@ impl ApiTester {
             .map(|i| ValidatorRequest {
                 enable: !s.disabled.contains(&i),
                 description: format!("boi #{}", i),
+                graffiti: None,
                 deposit_gwei: E::default_spec().max_effective_balance,
             })
             .collect::<Vec<_>>();
@@ -339,6 +339,7 @@ impl ApiTester {
                     .unwrap()
                     .into(),
                 keystore,
+                graffiti: None,
             };
 
             self.client
@@ -355,6 +356,7 @@ impl ApiTester {
                 .unwrap()
                 .into(),
             keystore,
+            graffiti: None,
         };
 
         let response = self
