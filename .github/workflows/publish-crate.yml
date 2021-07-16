@@ -3,6 +3,13 @@ name:   Publish Crate
 on:
     push:
         tags:
+            - tree-hash-v*
+            - tree-hash-derive-v*
+            - eth2-ssz-v*
+            - eth2-ssz-derive-v*
+            - eth2-ssz-types-v*
+            - eth2-serde-util-v*
+            - eth2-hashing-v*
 
 env:
     CARGO_API_TOKEN: ${{ secrets.CARGO_API_TOKEN }}
