@@ -122,6 +122,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     pub fn blocks_by_range_request(
         &mut self,
         peer_id: PeerId,
+        is_blob_batch: bool,
         request: BlocksByRangeRequest,
         chain_id: ChainId,
         batch_id: BatchId,
@@ -195,6 +196,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     pub fn backfill_blocks_by_range_request(
         &mut self,
         peer_id: PeerId,
+        is_blob_batch: bool,
         request: BlocksByRangeRequest,
         batch_id: BatchId,
     ) -> Result<Id, &'static str> {
@@ -427,5 +429,19 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         let id = self.request_id;
         self.request_id += 1;
         id
+    }
+
+    pub fn is_blob_batch(&self, epoch: types::Epoch) -> bool {
+        use super::range_sync::EPOCHS_PER_BATCH;
+        assert_eq!(
+            EPOCHS_PER_BATCH, 1,
+            "If this is not one, everything will fail horribly"
+        );
+        // EVERYTHING IS A BLOB
+        // Here we need access to the beacon chain, check the fork boundary, the current epoch, the
+        // blob period to serve and check with that if the batch is a blob batch or not.
+        // NOTE: This would carelessly assume batch sizes are always 1 epoch, to avoid needing to
+        // align with the batch boundary.
+        true
     }
 }

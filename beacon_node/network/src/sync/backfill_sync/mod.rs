@@ -953,8 +953,8 @@ impl<T: BeaconChainTypes> BackFillSync<T> {
         peer: PeerId,
     ) -> Result<(), BackFillError> {
         if let Some(batch) = self.batches.get_mut(&batch_id) {
-            let request = batch.to_blocks_by_range_request();
-            match network.backfill_blocks_by_range_request(peer, request, batch_id) {
+            let (request, is_blob_batch) = batch.to_blocks_by_range_request();
+            match network.backfill_blocks_by_range_request(peer, is_blob_batch, request, batch_id) {
                 Ok(request_id) => {
                     // inform the batch about the new request
                     if let Err(e) = batch.start_downloading_from_peer(peer, request_id) {
@@ -1054,7 +1054,7 @@ impl<T: BeaconChainTypes> BackFillSync<T> {
         idle_peers.shuffle(&mut rng);
 
         while let Some(peer) = idle_peers.pop() {
-            if let Some(batch_id) = self.include_next_batch() {
+            if let Some(batch_id) = self.include_next_batch(network) {
                 // send the batch
                 self.send_batch(network, batch_id, peer)?;
             } else {
@@ -1067,7 +1067,7 @@ impl<T: BeaconChainTypes> BackFillSync<T> {
 
     /// Creates the next required batch from the chain. If there are no more batches required,
     /// `false` is returned.
-    fn include_next_batch(&mut self) -> Option<BatchId> {
+    fn include_next_batch(&mut self, network: &mut SyncNetworkContext<T>) -> Option<BatchId> {
         // don't request batches beyond genesis;
         if self.last_batch_downloaded {
             return None;
@@ -1104,10 +1104,15 @@ impl<T: BeaconChainTypes> BackFillSync<T> {
                 self.to_be_downloaded = self
                     .to_be_downloaded
                     .saturating_sub(BACKFILL_EPOCHS_PER_BATCH);
-                self.include_next_batch()
+                self.include_next_batch(network)
             }
             Entry::Vacant(entry) => {
-                entry.insert(BatchInfo::new(&batch_id, BACKFILL_EPOCHS_PER_BATCH));
+                let is_blob_batch = network.is_blob_batch(batch_id);
+                entry.insert(BatchInfo::new(
+                    &batch_id,
+                    BACKFILL_EPOCHS_PER_BATCH,
+                    is_blob_batch,
+                ));
                 if batch_id == 0 {
                     self.last_batch_downloaded = true;
                 }

@@ -19,7 +19,7 @@ use types::{Epoch, EthSpec, Hash256, SignedBeaconBlock, Slot};
 /// we will negatively report peers with poor bandwidth. This can be set arbitrarily high, in which
 /// case the responder will fill the response up to the max request size, assuming they have the
 /// bandwidth to do so.
-pub const EPOCHS_PER_BATCH: u64 = 2;
+pub const EPOCHS_PER_BATCH: u64 = 1;
 
 /// The maximum number of batches to queue before requesting more.
 const BATCH_BUFFER_SIZE: u8 = 5;
@@ -897,8 +897,8 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         peer: PeerId,
     ) -> ProcessingResult {
         if let Some(batch) = self.batches.get_mut(&batch_id) {
-            let request = batch.to_blocks_by_range_request();
-            match network.blocks_by_range_request(peer, request, self.id, batch_id) {
+            let (request, is_blob_batch) = batch.to_blocks_by_range_request();
+            match network.blocks_by_range_request(peer, is_blob_batch, request, self.id, batch_id) {
                 Ok(request_id) => {
                     // inform the batch about the new request
                     batch.start_downloading_from_peer(peer, request_id)?;
@@ -1002,7 +1002,8 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         if let Some(epoch) = self.optimistic_start {
             if let Entry::Vacant(entry) = self.batches.entry(epoch) {
                 if let Some(peer) = idle_peers.pop() {
-                    let optimistic_batch = BatchInfo::new(&epoch, EPOCHS_PER_BATCH);
+                    let is_blob_batch = network.is_blob_batch(epoch);
+                    let optimistic_batch = BatchInfo::new(&epoch, EPOCHS_PER_BATCH, is_blob_batch);
                     entry.insert(optimistic_batch);
                     self.send_batch(network, epoch, peer)?;
                 }
@@ -1011,7 +1012,7 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         }
 
         while let Some(peer) = idle_peers.pop() {
-            if let Some(batch_id) = self.include_next_batch() {
+            if let Some(batch_id) = self.include_next_batch(network) {
                 // send the batch
                 self.send_batch(network, batch_id, peer)?;
             } else {
@@ -1025,7 +1026,7 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
 
     /// Creates the next required batch from the chain. If there are no more batches required,
     /// `false` is returned.
-    fn include_next_batch(&mut self) -> Option<BatchId> {
+    fn include_next_batch(&mut self, network: &mut SyncNetworkContext<T>) -> Option<BatchId> {
         // don't request batches beyond the target head slot
         if self
             .to_be_downloaded
@@ -1059,10 +1060,11 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
             Entry::Occupied(_) => {
                 // this batch doesn't need downloading, let this same function decide the next batch
                 self.to_be_downloaded += EPOCHS_PER_BATCH;
-                self.include_next_batch()
+                self.include_next_batch(network)
             }
             Entry::Vacant(entry) => {
-                entry.insert(BatchInfo::new(&batch_id, EPOCHS_PER_BATCH));
+                let is_blob_batch = network.is_blob_batch(batch_id);
+                entry.insert(BatchInfo::new(&batch_id, EPOCHS_PER_BATCH, is_blob_batch));
                 self.to_be_downloaded += EPOCHS_PER_BATCH;
                 Some(batch_id)
             }

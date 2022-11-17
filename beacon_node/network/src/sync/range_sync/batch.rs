@@ -96,6 +96,8 @@ pub struct BatchInfo<T: EthSpec, B: BatchConfig = RangeSyncBatchConfig> {
     failed_download_attempts: Vec<PeerId>,
     /// State of the batch.
     state: BatchState<T>,
+    /// Whether this batch contains all blo
+    is_blob_batch: bool,
     /// Pin the generic
     marker: std::marker::PhantomData<B>,
 }
@@ -139,8 +141,12 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
     /// Epoch boundary |                                   |
     ///  ... | 30 | 31 | 32 | 33 | 34 | ... | 61 | 62 | 63 | 64 | 65 |
     ///       Batch 1       |              Batch 2              |  Batch 3
-    pub fn new(start_epoch: &Epoch, num_of_epochs: u64) -> Self {
-        let start_slot = start_epoch.start_slot(T::slots_per_epoch()) + 1;
+    ///
+    /// NOTE: Removed the shift by one for eip4844 because otherwise the last batch before the blob
+    /// fork boundary will me of mixed type (all blocks and one last blockblob), and I don't have
+    /// the emotional budget to deal with it. This means finalization might be slower in eip4844
+    pub fn new(start_epoch: &Epoch, num_of_epochs: u64, is_blob_batch: bool) -> Self {
+        let start_slot = start_epoch.start_slot(T::slots_per_epoch());
         let end_slot = start_slot + num_of_epochs * T::slots_per_epoch();
         BatchInfo {
             start_slot,
@@ -149,6 +155,7 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
             failed_download_attempts: Vec::new(),
             non_faulty_processing_attempts: 0,
             state: BatchState::AwaitingDownload,
+            is_blob_batch,
             marker: std::marker::PhantomData,
         }
     }
@@ -201,11 +208,15 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
     }
 
     /// Returns a BlocksByRange request associated with the batch.
-    pub fn to_blocks_by_range_request(&self) -> BlocksByRangeRequest {
-        BlocksByRangeRequest {
-            start_slot: self.start_slot.into(),
-            count: self.end_slot.sub(self.start_slot).into(),
-        }
+    /// The bool specifies whether the request is a blobs or blocks request.
+    pub fn to_blocks_by_range_request(&self) -> (BlocksByRangeRequest, bool) {
+        (
+            BlocksByRangeRequest {
+                start_slot: self.start_slot.into(),
+                count: self.end_slot.sub(self.start_slot).into(),
+            },
+            self.is_blob_batch,
+        )
     }
 
     /// After different operations over a batch, this could be in a state that allows it to

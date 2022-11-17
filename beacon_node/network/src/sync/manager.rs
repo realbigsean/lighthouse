@@ -79,6 +79,17 @@ pub struct SeansBlockBlob {
     blob: SeansBlob,
     block: SeansBlock,
 }
+pub struct BlobSideCar {}
+pub enum BlockTy<T: EthSpec> {
+    Block {
+        block: Arc<SignedBeaconBlock<T>>,
+    },
+    BlockAndBlob {
+        block: Arc<SignedBeaconBlock<T>>,
+        blob_sidecar: BlobSideCar,
+    },
+}
+
 /// Id of rpc requests sent by sync to the network.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum RequestId {
