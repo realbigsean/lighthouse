@@ -26,6 +26,8 @@ use std::collections::{
 use std::sync::Arc;
 use types::{Epoch, EthSpec, SignedBeaconBlock};
 
+use super::manager::BlockTy;
+
 /// Blocks are downloaded in batches from peers. This constant specifies how many epochs worth of
 /// blocks per batch are requested _at most_. A batch may request less blocks to account for
 /// already requested slots. There is a timeout for each batch request. If this value is too high,
@@ -54,7 +56,7 @@ impl BatchConfig for BackFillBatchConfig {
     fn max_batch_processing_attempts() -> u8 {
         MAX_BATCH_PROCESSING_ATTEMPTS
     }
-    fn batch_attempt_hash<T: EthSpec>(blocks: &[Arc<SignedBeaconBlock<T>>]) -> u64 {
+    fn batch_attempt_hash<T: EthSpec>(blocks: &[BlockTy<T>]) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();

@@ -1,5 +1,6 @@
 use super::batch::{BatchInfo, BatchProcessingResult, BatchState};
 use crate::beacon_processor::{ChainSegmentProcessId, WorkEvent as BeaconWorkEvent};
+use crate::sync::manager::BlockTy;
 use crate::sync::{
     manager::Id, network_context::SyncNetworkContext, BatchOperationOutcome, BatchProcessResult,
 };
@@ -225,7 +226,7 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         batch_id: BatchId,
         peer_id: &PeerId,
         request_id: Id,
-        beacon_block: Option<Arc<SignedBeaconBlock<T::EthSpec>>>,
+        beacon_block: Option<BlockTy<T::EthSpec>>,
     ) -> ProcessingResult {
         // check if we have this batch
         let batch = match self.batches.get_mut(&batch_id) {

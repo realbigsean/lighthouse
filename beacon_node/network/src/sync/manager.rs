@@ -80,6 +80,7 @@ pub struct SeansBlockBlob {
     block: SeansBlock,
 }
 pub struct BlobSideCar {}
+
 pub enum BlockTy<T: EthSpec> {
     Block {
         block: Arc<SignedBeaconBlock<T>>,
@@ -90,6 +91,30 @@ pub enum BlockTy<T: EthSpec> {
     },
 }
 
+// For some reason derive didn't work
+impl<T: EthSpec> std::hash::Hash for BlockTy<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            BlockTy::Block { block } => block.hash(state),
+            BlockTy::BlockAndBlob {
+                block,
+                blob_sidecar: _,
+            } => block.hash(state),
+        }
+    }
+}
+
+impl<T: EthSpec> BlockTy<T> {
+    pub fn slot(&self) -> Slot {
+        match self {
+            BlockTy::Block { block } => block.slot(),
+            BlockTy::BlockAndBlob {
+                block,
+                blob_sidecar: _,
+            } => block.slot(),
+        }
+    }
+}
 /// Id of rpc requests sent by sync to the network.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum RequestId {
