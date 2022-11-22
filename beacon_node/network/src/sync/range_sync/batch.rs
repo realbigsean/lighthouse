@@ -1,11 +1,11 @@
-use crate::sync::manager::{BlockTy, Id};
+use crate::sync::manager::{BlobSideCar, BlockTy, Id};
 use lighthouse_network::rpc::methods::BlocksByRangeRequest;
 use lighthouse_network::PeerId;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::ops::Sub;
 use std::sync::Arc;
-use types::{Epoch, EthSpec, SignedBeaconBlock, Slot};
+use types::{Epoch, EthSpec, SignedBeaconBlock, SignedBeaconBlockAndBlobsSidecar, Slot};
 
 /// The number of times to retry a batch before it is considered failed.
 const MAX_BATCH_DOWNLOAD_ATTEMPTS: u8 = 5;
@@ -13,6 +13,21 @@ const MAX_BATCH_DOWNLOAD_ATTEMPTS: u8 = 5;
 /// Invalid batches are attempted to be re-downloaded from other peers. If a batch cannot be processed
 /// after `MAX_BATCH_PROCESSING_ATTEMPTS` times, it is considered faulty.
 const MAX_BATCH_PROCESSING_ATTEMPTS: u8 = 3;
+
+pub enum BatchTy<T: EthSpec> {
+    Blocks(Vec<Arc<SignedBeaconBlock<T>>>),
+    BlocksAndBlobs(Vec<SignedBeaconBlockAndBlobsSidecar<T>>),
+}
+
+/// Error representing a batch with mixed block types.
+#[derive(Debug)]
+pub struct MixedBlockTyErr;
+
+/// Type of expected batch.
+pub enum ExpectedBatchTy {
+    OnlyBlockBlobs,
+    OnlyBlock,
+}
 
 /// Allows customisation of the above constants used in other sync methods such as BackFillSync.
 pub trait BatchConfig {
@@ -96,8 +111,8 @@ pub struct BatchInfo<T: EthSpec, B: BatchConfig = RangeSyncBatchConfig> {
     failed_download_attempts: Vec<PeerId>,
     /// State of the batch.
     state: BatchState<T>,
-    /// Whether this batch contains all blo
-    is_blob_batch: bool,
+    /// Whether this batch contains all blocks or all blocks and blobs.
+    batch_type: ExpectedBatchTy,
     /// Pin the generic
     marker: std::marker::PhantomData<B>,
 }
@@ -143,9 +158,9 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
     ///       Batch 1       |              Batch 2              |  Batch 3
     ///
     /// NOTE: Removed the shift by one for eip4844 because otherwise the last batch before the blob
-    /// fork boundary will me of mixed type (all blocks and one last blockblob), and I don't have
+    /// fork boundary will be of mixed type (all blocks and one last blockblob), and I don't have
     /// the emotional budget to deal with it. This means finalization might be slower in eip4844
-    pub fn new(start_epoch: &Epoch, num_of_epochs: u64, is_blob_batch: bool) -> Self {
+    pub fn new(start_epoch: &Epoch, num_of_epochs: u64, batch_type: ExpectedBatchTy) -> Self {
         let start_slot = start_epoch.start_slot(T::slots_per_epoch());
         let end_slot = start_slot + num_of_epochs * T::slots_per_epoch();
         BatchInfo {
@@ -155,7 +170,7 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
             failed_download_attempts: Vec::new(),
             non_faulty_processing_attempts: 0,
             state: BatchState::AwaitingDownload,
-            is_blob_batch,
+            batch_type,
             marker: std::marker::PhantomData,
         }
     }
@@ -209,13 +224,13 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
 
     /// Returns a BlocksByRange request associated with the batch.
     /// The bool specifies whether the request is a blobs or blocks request.
-    pub fn to_blocks_by_range_request(&self) -> (BlocksByRangeRequest, bool) {
+    pub fn to_blocks_by_range_request(&self) -> (BlocksByRangeRequest, ExpectedBatchTy) {
         (
             BlocksByRangeRequest {
                 start_slot: self.start_slot.into(),
                 count: self.end_slot.sub(self.start_slot).into(),
             },
-            self.is_blob_batch,
+            self.batch_type,
         )
     }
 
@@ -374,11 +389,30 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
         }
     }
 
-    pub fn start_processing(&mut self) -> Result<Vec<BlockTy<T>>, WrongState> {
+    pub fn start_processing(&mut self) -> Result<BatchTy<T>, WrongState> {
         match self.state.poison() {
             BatchState::AwaitingProcessing(peer, blocks) => {
                 self.state = BatchState::Processing(Attempt::new::<B, T>(peer, &blocks));
-                Ok(blocks)
+                match self.batch_type {
+                    ExpectedBatchTy::OnlyBlockBlobs => {
+                        let blocks = blocks.into_iter().map(|block| {
+                            let BlockTy::BlockAndBlob { block_and_blob } = block else {
+                                panic!("Batches should never have a mixed type. This is a bug. Contact D")
+                            };
+                            block_and_blob
+                        }).collect();
+                        Ok(BatchTy::BlocksAndBlobs(blocks))
+                    }
+                    ExpectedBatchTy::OnlyBlock => {
+                        let blocks = blocks.into_iter().map(|block| {
+                            let BlockTy::Block { block } = block else {
+                                panic!("Batches should never have a mixed type. This is a bug. Contact D")
+                            };
+                            block
+                        }).collect();
+                        Ok(BatchTy::Blocks(blocks))
+                    }
+                }
             }
             BatchState::Poisoned => unreachable!("Poisoned batch"),
             other => {

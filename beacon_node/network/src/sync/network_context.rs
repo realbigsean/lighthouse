@@ -2,7 +2,7 @@
 //! channel and stores a global RPC ID to perform requests.
 
 use super::manager::{Id, RequestId as SyncRequestId, SeansBlob, SeansBlock, SeansBlockBlob};
-use super::range_sync::{BatchId, ChainId};
+use super::range_sync::{BatchId, ChainId, ExpectedBatchTy};
 use crate::beacon_processor::WorkEvent;
 use crate::service::{NetworkMessage, RequestId};
 use crate::status::ToStatusMessage;
@@ -122,7 +122,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     pub fn blocks_by_range_request(
         &mut self,
         peer_id: PeerId,
-        is_blob_batch: bool,
+        batch_type: ExpectedBatchTy,
         request: BlocksByRangeRequest,
         chain_id: ChainId,
         batch_id: BatchId,
@@ -196,7 +196,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     pub fn backfill_blocks_by_range_request(
         &mut self,
         peer_id: PeerId,
-        is_blob_batch: bool,
+        batch_type: ExpectedBatchTy,
         request: BlocksByRangeRequest,
         batch_id: BatchId,
     ) -> Result<Id, &'static str> {
@@ -431,17 +431,20 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         id
     }
 
-    pub fn is_blob_batch(&self, epoch: types::Epoch) -> bool {
+    pub fn batch_type(&self, epoch: types::Epoch) -> ExpectedBatchTy {
         use super::range_sync::EPOCHS_PER_BATCH;
         assert_eq!(
             EPOCHS_PER_BATCH, 1,
             "If this is not one, everything will fail horribly"
         );
-        // EVERYTHING IS A BLOB
+        warn!(
+            self.log,
+            "Missing fork boundary and prunning boundary comparison to decide request type. EVERYTHING IS A BLOB, BOB."
+        );
         // Here we need access to the beacon chain, check the fork boundary, the current epoch, the
         // blob period to serve and check with that if the batch is a blob batch or not.
         // NOTE: This would carelessly assume batch sizes are always 1 epoch, to avoid needing to
         // align with the batch boundary.
-        true
+        ExpectedBatchTy::OnlyBlockBlobs
     }
 }

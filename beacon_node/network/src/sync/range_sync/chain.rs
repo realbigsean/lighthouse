@@ -1,4 +1,5 @@
 use super::batch::{BatchInfo, BatchProcessingResult, BatchState};
+use super::BatchTy;
 use crate::beacon_processor::{ChainSegmentProcessId, WorkEvent as BeaconWorkEvent};
 use crate::sync::manager::BlockTy;
 use crate::sync::{
@@ -327,9 +328,14 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         let process_id = ChainSegmentProcessId::RangeBatchId(self.id, batch_id, count_unrealized);
         self.current_processing_batch = Some(batch_id);
 
-        if let Err(e) =
-            beacon_processor_send.try_send(BeaconWorkEvent::chain_segment(process_id, blocks))
-        {
+        let work_event = match blocks {
+            BatchTy::Blocks(blocks) => BeaconWorkEvent::chain_segment(process_id, blocks),
+            BatchTy::BlocksAndBlobs(blocks_and_blobs) => {
+                BeaconWorkEvent::blob_chain_segment(process_id, blocks_and_blobs)
+            }
+        };
+
+        if let Err(e) = beacon_processor_send.try_send(work_event) {
             crit!(self.log, "Failed to send chain segment to processor."; "msg" => "process_batch",
                 "error" => %e, "batch" => self.processing_target);
             // This is unlikely to happen but it would stall syncing since the batch now has no
@@ -1003,7 +1009,7 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         if let Some(epoch) = self.optimistic_start {
             if let Entry::Vacant(entry) = self.batches.entry(epoch) {
                 if let Some(peer) = idle_peers.pop() {
-                    let is_blob_batch = network.is_blob_batch(epoch);
+                    let is_blob_batch = network.batch_type(epoch);
                     let optimistic_batch = BatchInfo::new(&epoch, EPOCHS_PER_BATCH, is_blob_batch);
                     entry.insert(optimistic_batch);
                     self.send_batch(network, epoch, peer)?;
@@ -1064,7 +1070,7 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
                 self.include_next_batch(network)
             }
             Entry::Vacant(entry) => {
-                let is_blob_batch = network.is_blob_batch(batch_id);
+                let is_blob_batch = network.batch_type(batch_id);
                 entry.insert(BatchInfo::new(&batch_id, EPOCHS_PER_BATCH, is_blob_batch));
                 self.to_be_downloaded += EPOCHS_PER_BATCH;
                 Some(batch_id)

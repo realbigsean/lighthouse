@@ -27,6 +27,7 @@ use std::sync::Arc;
 use types::{Epoch, EthSpec, SignedBeaconBlock};
 
 use super::manager::BlockTy;
+use super::range_sync::BatchTy;
 
 /// Blocks are downloaded in batches from peers. This constant specifies how many epochs worth of
 /// blocks per batch are requested _at most_. A batch may request less blocks to account for
@@ -392,7 +393,7 @@ impl<T: BeaconChainTypes> BackFillSync<T> {
         batch_id: BatchId,
         peer_id: &PeerId,
         request_id: Id,
-        beacon_block: Option<Arc<SignedBeaconBlock<T::EthSpec>>>,
+        beacon_block: Option<BlockTy<T::EthSpec>>,
     ) -> Result<ProcessResult, BackFillError> {
         // check if we have this batch
         let batch = match self.batches.get_mut(&batch_id) {
@@ -537,10 +538,13 @@ impl<T: BeaconChainTypes> BackFillSync<T> {
         let process_id = ChainSegmentProcessId::BackSyncBatchId(batch_id);
         self.current_processing_batch = Some(batch_id);
 
-        if let Err(e) = network
-            .processor_channel()
-            .try_send(BeaconWorkEvent::chain_segment(process_id, blocks))
-        {
+        let work_event = match blocks {
+            BatchTy::Blocks(blocks) => BeaconWorkEvent::chain_segment(process_id, blocks),
+            BatchTy::BlocksAndBlobs(blocks_and_blobs) => {
+                BeaconWorkEvent::blob_chain_segment(process_id, blocks_and_blobs)
+            }
+        };
+        if let Err(e) = network.processor_channel().try_send(work_event) {
             crit!(self.log, "Failed to send backfill segment to processor."; "msg" => "process_batch",
                 "error" => %e, "batch" => self.processing_target);
             // This is unlikely to happen but it would stall syncing since the batch now has no
@@ -1109,11 +1113,11 @@ impl<T: BeaconChainTypes> BackFillSync<T> {
                 self.include_next_batch(network)
             }
             Entry::Vacant(entry) => {
-                let is_blob_batch = network.is_blob_batch(batch_id);
+                let batch_type = network.batch_type(batch_id);
                 entry.insert(BatchInfo::new(
                     &batch_id,
                     BACKFILL_EPOCHS_PER_BATCH,
-                    is_blob_batch,
+                    batch_type,
                 ));
                 if batch_id == 0 {
                     self.last_batch_downloaded = true;

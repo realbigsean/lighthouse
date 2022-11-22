@@ -86,8 +86,7 @@ pub enum BlockTy<T: EthSpec> {
         block: Arc<SignedBeaconBlock<T>>,
     },
     BlockAndBlob {
-        block: Arc<SignedBeaconBlock<T>>,
-        blob_sidecar: BlobSideCar,
+        block_and_blob: SignedBeaconBlockAndBlobsSidecar<T>,
     },
 }
 
@@ -96,10 +95,7 @@ impl<T: EthSpec> std::hash::Hash for BlockTy<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             BlockTy::Block { block } => block.hash(state),
-            BlockTy::BlockAndBlob {
-                block,
-                blob_sidecar: _,
-            } => block.hash(state),
+            BlockTy::BlockAndBlob { block_and_blob } => block_and_blob.beacon_block.hash(state),
         }
     }
 }
@@ -108,10 +104,7 @@ impl<T: EthSpec> BlockTy<T> {
     pub fn slot(&self) -> Slot {
         match self {
             BlockTy::Block { block } => block.slot(),
-            BlockTy::BlockAndBlob {
-                block,
-                blob_sidecar: _,
-            } => block.slot(),
+            BlockTy::BlockAndBlob { block_and_blob } => block_and_blob.beacon_block.slot(),
         }
     }
 }
