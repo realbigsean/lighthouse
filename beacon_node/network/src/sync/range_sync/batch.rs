@@ -1,4 +1,4 @@
-use crate::sync::manager::{BlobSideCar, BlockTy, Id};
+use crate::sync::manager::{BlockTy, Id};
 use lighthouse_network::rpc::methods::BlocksByRangeRequest;
 use lighthouse_network::PeerId;
 use std::collections::HashSet;
@@ -159,7 +159,7 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
     ///       Batch 1       |              Batch 2              |  Batch 3
     ///
     /// NOTE: Removed the shift by one for eip4844 because otherwise the last batch before the blob
-    /// fork boundary will be of mixed type (all blocks and one last blockblob), and I don't want to 
+    /// fork boundary will be of mixed type (all blocks and one last blockblob), and I don't want to
     /// deal with this for now.
     /// This means finalization might be slower in eip4844
     pub fn new(start_epoch: &Epoch, num_of_epochs: u64, batch_type: ExpectedBatchTy) -> Self {
@@ -397,7 +397,7 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
                 match self.batch_type {
                     ExpectedBatchTy::OnlyBlockBlobs => {
                         let blocks = blocks.into_iter().map(|block| {
-                            let BlockTy::BlockAndBlob { block_and_blob } = block else {
+                            let BlockTy::BlockAndBlob { block_sidecar_pair: block_and_blob } = block else {
                                 panic!("Batches should never have a mixed type. This is a bug. Contact D")
                             };
                             block_and_blob

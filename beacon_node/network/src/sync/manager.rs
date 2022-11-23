@@ -69,39 +69,22 @@ pub const SLOT_IMPORT_TOLERANCE: usize = 32;
 
 pub type Id = u32;
 
-#[derive(Debug)]
-pub struct SeansBlob {}
-
-#[derive(Debug)]
-pub struct SeansBlock {}
-
-#[derive(Debug)]
-pub struct SeansBlockBlob {
-    blob: SeansBlob,
-    block: SeansBlock,
-}
-pub struct BlobSideCar {}
-
 pub enum BlockTy<T: EthSpec> {
     Block {
         block: Arc<SignedBeaconBlock<T>>,
     },
     BlockAndBlob {
-        block_and_blob: SignedBeaconBlockAndBlobsSidecar<T>,
+        block_sidecar_pair: SignedBeaconBlockAndBlobsSidecar<T>,
     },
 }
 
-pub enum BlockOrBlob<T: EthSpec> {
-    Block(Arc<SignedBeaconBlock<T>>),
-    Blob(Arc<BlobsSidecar<T>>),
-}
 
 // For some reason derive didn't work
 impl<T: EthSpec> std::hash::Hash for BlockTy<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             BlockTy::Block { block } => block.hash(state),
-            BlockTy::BlockAndBlob { block_and_blob } => block_and_blob.beacon_block.hash(state),
+            BlockTy::BlockAndBlob { block_sidecar_pair: block_and_blob } => block_and_blob.beacon_block.hash(state),
         }
     }
 }
@@ -110,7 +93,7 @@ impl<T: EthSpec> BlockTy<T> {
     pub fn slot(&self) -> Slot {
         match self {
             BlockTy::Block { block } => block.slot(),
-            BlockTy::BlockAndBlob { block_and_blob } => block_and_blob.beacon_block.slot(),
+            BlockTy::BlockAndBlob { block_sidecar_pair: block_and_blob } => block_and_blob.beacon_block.slot(),
         }
     }
 }
@@ -862,19 +845,6 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                 }
             }
         }
-    }
-
-    fn rpc_blob_received(
-        &mut self,
-        request_id: RequestId,
-        peer_id: PeerId,
-        beacon_block: Option<Arc<BlobsSidecar<T::EthSpec>>>,
-        seen_timestamp: Duration,
-    ) {
-        let RequestId::RangeBlockBlob { id } = request_id else {
-            panic!("Wrong things going on ");
-        };
-        // get the paired block blob from the network context and send it to range
     }
 }
 
