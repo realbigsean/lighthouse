@@ -159,8 +159,9 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
     ///       Batch 1       |              Batch 2              |  Batch 3
     ///
     /// NOTE: Removed the shift by one for eip4844 because otherwise the last batch before the blob
-    /// fork boundary will be of mixed type (all blocks and one last blockblob), and I don't have
-    /// the emotional budget to deal with it. This means finalization might be slower in eip4844
+    /// fork boundary will be of mixed type (all blocks and one last blockblob), and I don't want to 
+    /// deal with this for now.
+    /// This means finalization might be slower in eip4844
     pub fn new(start_epoch: &Epoch, num_of_epochs: u64, batch_type: ExpectedBatchTy) -> Self {
         let start_slot = start_epoch.start_slot(T::slots_per_epoch());
         let end_slot = start_slot + num_of_epochs * T::slots_per_epoch();
@@ -224,7 +225,6 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
     }
 
     /// Returns a BlocksByRange request associated with the batch.
-    /// The bool specifies whether the request is a blobs or blocks request.
     pub fn to_blocks_by_range_request(&self) -> (BlocksByRangeRequest, ExpectedBatchTy) {
         (
             BlocksByRangeRequest {
