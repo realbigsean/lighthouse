@@ -55,7 +55,7 @@ use lru_cache::LRUTimeCache;
 use slog::{crit, debug, trace, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
-use types::{Epoch, EthSpec, Hash256, SignedBeaconBlock, Slot};
+use types::{Epoch, EthSpec, Hash256, Slot};
 
 /// For how long we store failed finalized chains to prevent retries.
 const FAILED_CHAINS_EXPIRY_SECONDS: u64 = 30;
@@ -677,6 +677,8 @@ mod tests {
 
     #[test]
     fn pause_and_resume_on_ee_offline() {
+        unimplemented!("need to fix");
+        /*
         let (mut rig, mut range) = range(true);
 
         // add some peers
@@ -703,7 +705,7 @@ mod tests {
         range.add_peer(&mut rig.cx, local_info, peer2, finalized_info);
         let ((chain2, batch2), id2) = match rig.grab_request(&peer2).0 {
             RequestId::Sync(crate::sync::manager::RequestId::RangeSync { id }) => {
-                (rig.cx.range_sync_response(id, true).unwrap(), id)
+                (rig.cx.range_sync_response(id, None).unwrap(), id)
             }
             other => panic!("unexpected request {:?}", other),
         };
@@ -722,5 +724,6 @@ mod tests {
 
         rig.expect_chain_segment();
         rig.expect_chain_segment();
+        */
     }
 }

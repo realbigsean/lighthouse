@@ -24,6 +24,7 @@ pub enum BatchTy<T: EthSpec> {
 pub struct MixedBlockTyErr;
 
 /// Type of expected batch.
+#[derive(Debug, Clone)]
 pub enum ExpectedBatchTy {
     OnlyBlockBlobs,
     OnlyBlock,
@@ -230,7 +231,7 @@ impl<T: EthSpec, B: BatchConfig> BatchInfo<T, B> {
                 start_slot: self.start_slot.into(),
                 count: self.end_slot.sub(self.start_slot).into(),
             },
-            self.batch_type,
+            self.batch_type.clone(),
         )
     }
 

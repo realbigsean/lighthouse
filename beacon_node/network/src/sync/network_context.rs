@@ -1,7 +1,9 @@
 //! Provides network functionality for the Syncing thread. This fundamentally wraps a network
 //! channel and stores a global RPC ID to perform requests.
 
-use super::manager::{Id, RequestId as SyncRequestId, SeansBlob, SeansBlock, SeansBlockBlob};
+use super::manager::{
+    BlockTy, Id, RequestId as SyncRequestId, SeansBlob, SeansBlock, SeansBlockBlob,
+};
 use super::range_sync::{BatchId, ChainId, ExpectedBatchTy};
 use crate::beacon_processor::WorkEvent;
 use crate::service::{NetworkMessage, RequestId};
@@ -15,6 +17,7 @@ use slog::{debug, trace, warn};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use types::{BlobsSidecar, SignedBeaconBlock, SignedBeaconBlockAndBlobsSidecar};
 
 #[derive(Debug, Default)]
 struct BlockBlobRequestInfo {
@@ -220,95 +223,55 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     }
 
     /// Received a blocks by range response.
-    pub fn range_sync_response(
+    pub fn range_sync_block_response(
         &mut self,
         request_id: Id,
-        remove: bool,
-    ) -> Option<(ChainId, BatchId)> {
-        if remove {
-            self.range_requests.remove(&request_id)
-        } else {
-            self.range_requests.get(&request_id).cloned()
-        }
-    }
-
-    /// Fails a blob bob request.
-    // We need to recover the chain and batch id to be able to tell range abound the failure.
-    pub fn fail_block_bob_request(&mut self, request_id: Id) -> Option<(ChainId, BatchId)> {
-        self.block_blob_requests
-            .remove(&request_id)
-            .map(|(chain_id, batch_id, _info)| (chain_id, batch_id))
-    }
-
-    /// We received a block for a block blob request. This returns:
-    /// None: if there is no pairing for this block yet
-    /// Some(chain_id, Some(paired block blob)) if the block was Some and there was a blob waiting
-    /// None if the block was none
-    pub fn block_blob_block_response(
-        &mut self,
-        request_id: Id,
-        block: Option<SeansBlock>,
-    ) -> Option<(ChainId, BatchId, Option<SeansBlockBlob>)> {
+        blob: Option<Arc<SignedBeaconBlock<T::EthSpec>>>,
+        batch_type: ExpectedBatchTy,
+    ) -> Option<(ChainId, BatchId, Option<BlockTy<T::EthSpec>>)> {
         unimplemented!()
-        // let (chain_id, batch_id, info) = self.block_blob_requests.get_mut(&request_id)?;
-        // match block {
-        //     Some(block) => match info.accumulated_blobs.pop_front() {
-        //         Some(blob) => Some(SeansBlockBlob { block, blob }),
-        //         None => {
-        //             // accumulate the block
-        //             info.accumulated_blocks.push_back(block);
-        //             None
-        //         }
-        //     },
-        //     None => {
-        //         info.is_blocks_rpc_finished = true;
-        //
-        //         if info.is_blobs_rpc_finished && info.is_blocks_rpc_finished {
-        //             // this is the coupled stream termination
-        //             Some((chain_id, batch_id, None))
-        //         } else {
-        //             None
-        //         }
-        //     }
-        // }
     }
 
-    pub fn block_blob_blob_response(
+    pub fn range_sync_blob_response(
         &mut self,
         request_id: Id,
-        blob: Option<SeansBlob>,
-    ) -> Option<(ChainId, BatchId, Option<SeansBlockBlob>)> {
-        // let (batch_id, chain_id, info) = self.block_blob_requests.get_mut(&request_id)?;
-        // match blob {
-        //     Some(blob) => match info.accumulated_blocks.pop_front() {
-        //         Some(block) => Some(SeansBlockBlob { block, blob }),
-        //         None => {
-        //             // accumulate the blob
-        //             info.accumulated_blobs.push_back(blob);
-        //             None
-        //         }
-        //     },
-        //     None => {
-        //         info.is_blobs_rpc_finished = true;
-        //
-        //         if info.is_blobs_rpc_finished && info.is_blocks_rpc_finished {
-        //             // this is the coupled stream termination
-        //             Some((chain_id, batch_id, None))
-        //         } else {
-        //             None
-        //         }
-        //     }
-        // }
-        unimplemented!("do it")
+        block_ty: Option<BlobsSidecar<T::EthSpec>>,
+    ) -> Option<(ChainId, BatchId, Option<BlockTy<T::EthSpec>>)> {
+        unimplemented!()
+    }
+
+    pub fn range_sync_request_failed(
+        &mut self,
+        request_id: Id,
+        batch_type: ExpectedBatchTy,
+    ) -> Option<(ChainId, BatchId)> {
+        unimplemented!()
+    }
+
+    pub fn backfill_request_failed(
+        &mut self,
+        request_id: Id,
+        batch_type: ExpectedBatchTy,
+    ) -> Option<BatchId> {
+        unimplemented!()
     }
 
     /// Received a blocks by range response.
-    pub fn backfill_sync_response(&mut self, request_id: Id, remove: bool) -> Option<BatchId> {
-        if remove {
-            self.backfill_requests.remove(&request_id)
-        } else {
-            self.backfill_requests.get(&request_id).cloned()
-        }
+    pub fn backfill_sync_block_response(
+        &mut self,
+        request_id: Id,
+        block_ty: Option<Arc<SignedBeaconBlock<T::EthSpec>>>,
+        batch_type: ExpectedBatchTy,
+    ) -> Option<(BatchId, Option<BlockTy<T::EthSpec>>)> {
+        unimplemented!()
+    }
+
+    pub fn backfill_sync_blob_response(
+        &mut self,
+        request_id: Id,
+        block_ty: Option<Arc<BlobsSidecar<T::EthSpec>>>,
+    ) -> Option<(BatchId, Option<BlockTy<T::EthSpec>>)> {
+        unimplemented!()
     }
 
     /// Sends a blocks by root request for a single block lookup.
@@ -318,6 +281,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         request: BlocksByRootRequest,
     ) -> Result<Id, &'static str> {
         //FIXME(sean) add prune depth logic here?
+        // D: YES
 
         trace!(
             self.log,
