@@ -396,19 +396,27 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     }
 
     pub fn batch_type(&self, epoch: types::Epoch) -> ExpectedBatchTy {
-        use super::range_sync::EPOCHS_PER_BATCH;
-        assert_eq!(
-            EPOCHS_PER_BATCH, 1,
-            "If this is not one, everything will fail horribly"
-        );
-        warn!(
+        // Keep tests only for blocks.
+        #[cfg(test)]
+        {
+            return ExpectedBatchTy::OnlyBlock;
+        }
+        #[cfg(not(test))]
+        {
+            use super::range_sync::EPOCHS_PER_BATCH;
+            assert_eq!(
+                EPOCHS_PER_BATCH, 1,
+                "If this is not one, everything will fail horribly"
+            );
+            warn!(
             self.log,
             "Missing fork boundary and prunning boundary comparison to decide request type. EVERYTHING IS A BLOB, BOB."
         );
-        // Here we need access to the beacon chain, check the fork boundary, the current epoch, the
-        // blob period to serve and check with that if the batch is a blob batch or not.
-        // NOTE: This would carelessly assume batch sizes are always 1 epoch, to avoid needing to
-        // align with the batch boundary.
-        ExpectedBatchTy::OnlyBlockBlobs
+            // Here we need access to the beacon chain, check the fork boundary, the current epoch, the
+            // blob period to serve and check with that if the batch is a blob batch or not.
+            // NOTE: This would carelessly assume batch sizes are always 1 epoch, to avoid needing to
+            // align with the batch boundary.
+            ExpectedBatchTy::OnlyBlockBlobs
+        }
     }
 }
