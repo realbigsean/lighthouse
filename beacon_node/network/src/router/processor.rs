@@ -211,8 +211,8 @@ impl<T: BeaconChainTypes> Processor<T> {
                 }
                 id @ (SyncId::BackFillSync { .. }
                 | SyncId::RangeSync { .. }
-                | SyncId::BackFillBlockBlob { .. }
-                | SyncId::RangeBlockBlob { .. }) => id,
+                | SyncId::BackFillSidecarPair { .. }
+                | SyncId::RangeSidecarPair { .. }) => id,
             },
             RequestId::Router => unreachable!("All BBRange requests belong to sync"),
         };
@@ -270,8 +270,8 @@ impl<T: BeaconChainTypes> Processor<T> {
                 id @ (SyncId::SingleBlock { .. } | SyncId::ParentLookup { .. }) => id,
                 SyncId::BackFillSync { .. }
                 | SyncId::RangeSync { .. }
-                | SyncId::RangeBlockBlob { .. }
-                | SyncId::BackFillBlockBlob { .. } => {
+                | SyncId::RangeSidecarPair { .. }
+                | SyncId::BackFillSidecarPair { .. } => {
                     unreachable!("Batch syncing do not request BBRoot requests")
                 }
             },
@@ -303,8 +303,8 @@ impl<T: BeaconChainTypes> Processor<T> {
                 id @ (SyncId::SingleBlock { .. } | SyncId::ParentLookup { .. }) => id,
                 SyncId::BackFillSync { .. }
                 | SyncId::RangeSync { .. }
-                | SyncId::RangeBlockBlob { .. }
-                | SyncId::BackFillBlockBlob { .. } => {
+                | SyncId::RangeSidecarPair { .. }
+                | SyncId::BackFillSidecarPair { .. } => {
                     unreachable!("Batch syncing does not request BBRoot requests")
                 }
             },

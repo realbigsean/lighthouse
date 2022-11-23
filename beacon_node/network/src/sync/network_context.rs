@@ -2,7 +2,7 @@
 //! channel and stores a global RPC ID to perform requests.
 
 use super::manager::{BlockTy, Id, RequestId as SyncRequestId};
-use super::range_sync::{BatchConfig, BatchId, ChainId, ExpectedBatchTy};
+use super::range_sync::{BatchId, ChainId, ExpectedBatchTy};
 use crate::beacon_processor::WorkEvent;
 use crate::service::{NetworkMessage, RequestId};
 use crate::status::ToStatusMessage;
@@ -196,7 +196,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
 
                 // create the shared request id. This is fine since the rpc handles substream ids.
                 let id = self.next_id();
-                let request_id = RequestId::Sync(SyncRequestId::RangeBlockBlob { id });
+                let request_id = RequestId::Sync(SyncRequestId::RangeSidecarPair { id });
 
                 // Create the blob request based on the blob request.
                 let blobs_request = Request::BlobsByRange(BlobsByRangeRequest {
@@ -263,7 +263,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
 
                 // create the shared request id. This is fine since the rpc handles substream ids.
                 let id = self.next_id();
-                let request_id = RequestId::Sync(SyncRequestId::RangeBlockBlob { id });
+                let request_id = RequestId::Sync(SyncRequestId::RangeSidecarPair { id });
 
                 // Create the blob request based on the blob request.
                 let blobs_request = Request::BlobsByRange(BlobsByRangeRequest {

@@ -24,7 +24,7 @@ use std::collections::{
     HashMap, HashSet,
 };
 use std::sync::Arc;
-use types::{Epoch, EthSpec, SignedBeaconBlock};
+use types::{Epoch, EthSpec};
 
 use super::manager::BlockTy;
 use super::range_sync::BatchTy;

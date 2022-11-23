@@ -69,6 +69,7 @@ pub const SLOT_IMPORT_TOLERANCE: usize = 32;
 
 pub type Id = u32;
 
+#[derive(Debug)]
 pub enum BlockTy<T: EthSpec> {
     Block {
         block: Arc<SignedBeaconBlock<T>>,
@@ -78,13 +79,15 @@ pub enum BlockTy<T: EthSpec> {
     },
 }
 
-
-// For some reason derive didn't work
+// TODO: probably needes to be changed. This is needed because SignedBeaconBlockAndBlobsSidecar
+// does not implement Hash
 impl<T: EthSpec> std::hash::Hash for BlockTy<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             BlockTy::Block { block } => block.hash(state),
-            BlockTy::BlockAndBlob { block_sidecar_pair: block_and_blob } => block_and_blob.beacon_block.hash(state),
+            BlockTy::BlockAndBlob {
+                block_sidecar_pair: block_and_blob,
+            } => block_and_blob.beacon_block.hash(state),
         }
     }
 }
@@ -93,7 +96,7 @@ impl<T: EthSpec> BlockTy<T> {
     pub fn slot(&self) -> Slot {
         match self {
             BlockTy::Block { block } => block.slot(),
-            BlockTy::BlockAndBlob { block_sidecar_pair: block_and_blob } => block_and_blob.beacon_block.slot(),
+            BlockTy::BlockAndBlob { block_sidecar_pair } => block_sidecar_pair.beacon_block.slot(),
         }
     }
 }
@@ -106,12 +109,12 @@ pub enum RequestId {
     ParentLookup { id: Id },
     /// Request was from the backfill sync algorithm.
     BackFillSync { id: Id },
-    /// Backfill request for blocks and blobs.
-    BackFillBlockBlob { id: Id },
+    /// Backfill request for blocks and sidecars.
+    BackFillSidecarPair { id: Id },
     /// The request was from a chain in the range sync algorithm.
     RangeSync { id: Id },
-    /// The request was from a chain in range, asking for ranges of blocks and blobs.
-    RangeBlockBlob { id: Id },
+    /// The request was from a chain in range, asking for ranges of blocks and sidecars.
+    RangeSidecarPair { id: Id },
 }
 
 #[derive(Debug)]
@@ -334,7 +337,7 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                 }
             }
 
-            RequestId::BackFillBlockBlob { id } => {
+            RequestId::BackFillSidecarPair { id } => {
                 if let Some(batch_id) = self
                     .network
                     .backfill_request_failed(id, ExpectedBatchTy::OnlyBlockBlobs)
@@ -363,7 +366,7 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                     self.update_sync_state()
                 }
             }
-            RequestId::RangeBlockBlob { id } => {
+            RequestId::RangeSidecarPair { id } => {
                 if let Some((chain_id, batch_id)) = self
                     .network
                     .range_sync_request_failed(id, ExpectedBatchTy::OnlyBlockBlobs)
@@ -676,7 +679,7 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                 peer_id,
                 blob_sidecar,
                 seen_timestamp,
-            } => todo!(),
+            } => self.rpc_sidecar_received(request_id, peer_id, blob_sidecar, seen_timestamp),
             SyncMessage::RpcBlockAndBlob {
                 request_id,
                 peer_id,
@@ -804,7 +807,7 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                 }
             }
 
-            RequestId::BackFillBlockBlob { id } => {
+            RequestId::BackFillSidecarPair { id } => {
                 if let Some((batch_id, block)) = self.network.backfill_sync_block_response(
                     id,
                     beacon_block,
@@ -827,12 +830,68 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                     }
                 }
             }
-            RequestId::RangeBlockBlob { id } => {
+            RequestId::RangeSidecarPair { id } => {
                 if let Some((chain_id, batch_id, block)) = self.network.range_sync_block_response(
                     id,
                     beacon_block,
                     ExpectedBatchTy::OnlyBlockBlobs,
                 ) {
+                    self.range_sync.blocks_by_range_response(
+                        &mut self.network,
+                        peer_id,
+                        chain_id,
+                        batch_id,
+                        id,
+                        block,
+                    );
+                    self.update_sync_state();
+                }
+            }
+        }
+    }
+
+    fn rpc_sidecar_received(
+        &mut self,
+        request_id: RequestId,
+        peer_id: PeerId,
+        maybe_sidecar: Option<Arc<BlobsSidecar<<T>::EthSpec>>>,
+        seen_timestamp: Duration,
+    ) {
+        match request_id {
+            RequestId::SingleBlock { id } => todo!("do we request individual sidecars?"),
+            RequestId::ParentLookup { id } => todo!(),
+            RequestId::BackFillSync { .. } => {
+                unreachable!("An only blocks request does not receive sidecars")
+            }
+            RequestId::BackFillSidecarPair { id } => {
+                if let Some((batch_id, block)) = self
+                    .network
+                    .backfill_sync_sidecar_response(id, maybe_sidecar)
+                {
+                    match self.backfill_sync.on_block_response(
+                        &mut self.network,
+                        batch_id,
+                        &peer_id,
+                        id,
+                        block,
+                    ) {
+                        Ok(ProcessResult::SyncCompleted) => self.update_sync_state(),
+                        Ok(ProcessResult::Successful) => {}
+                        Err(_error) => {
+                            // The backfill sync has failed, errors are reported
+                            // within.
+                            self.update_sync_state();
+                        }
+                    }
+                }
+            }
+            RequestId::RangeSync { .. } => {
+                unreachable!("And only blocks range request does not receive sidecars")
+            }
+            RequestId::RangeSidecarPair { id } => {
+                if let Some((chain_id, batch_id, block)) =
+                    self.network.range_sync_sidecar_response(id, maybe_sidecar)
+                {
                     self.range_sync.blocks_by_range_response(
                         &mut self.network,
                         peer_id,
