@@ -16,6 +16,7 @@ pub use engines::{EngineState, ForkchoiceState};
 use eth2::types::{builder_bid::SignedBuilderBid, ForkVersionedResponse};
 use ethers_core::types::{Transaction as EthersTransaction, U64};
 use fork_choice::ForkchoiceUpdateParameters;
+use hex::FromHexError;
 use lru::LruCache;
 use payload_status::process_payload_status;
 pub use payload_status::PayloadStatus;
@@ -31,7 +32,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use hex::FromHexError;
 use strum::AsRefStr;
 use task_executor::TaskExecutor;
 use tokio::{
@@ -2040,7 +2040,7 @@ pub enum BlobTxConversionError {
     /// There was an error converting the transaction from JSON.
     SerdeJson(serde_json::Error),
     /// There was an error converting the transaction from hex.
-    FromHexError(FromHexError),
+    FromHexError(String),
 }
 
 impl From<ssz_types::Error> for BlobTxConversionError {
@@ -2103,14 +2103,17 @@ fn ethers_tx_to_bytes<T: EthSpec>(
                 })
                 .collect::<Result<Vec<AccessTuple>, BlobTxConversionError>>()?,
         )?;
-        let max_fee_per_data_gas = transaction
-            .other
-            .get("maxFeePerDataGas")
-            .ok_or(BlobTxConversionError::MaxFeePerDataGasMissing)?
-            .as_str()
-            .ok_or(BlobTxConversionError::MaxFeePerDataGasMissing)?
-            .parse()
-            .map_err(BlobTxConversionError::FromHexError)?;
+        let max_fee_per_data_gas = Uint256::from_big_endian(
+            &eth2_serde_utils::hex::decode(
+                transaction
+                    .other
+                    .get("maxFeePerDataGas")
+                    .ok_or(BlobTxConversionError::MaxFeePerDataGasMissing)?
+                    .as_str()
+                    .ok_or(BlobTxConversionError::MaxFeePerDataGasMissing)?,
+            )
+            .map_err(BlobTxConversionError::FromHexError)?,
+        );
         let blob_versioned_hashes = transaction
             .other
             .get("blobVersionedHashes")
@@ -2119,10 +2122,14 @@ fn ethers_tx_to_bytes<T: EthSpec>(
             .ok_or(BlobTxConversionError::BlobVersionedHashesMissing)?
             .into_iter()
             .map(|versioned_hash| {
-                versioned_hash
-                    .ok_or(BlobTxConversionError::BlobVersionedHashesMissing)?
-                    .parse()
-                    .map_err(BlobTxConversionError::FromHexError)?;
+                Ok(Hash256::from_slice(
+                    &eth2_serde_utils::hex::decode(
+                        versioned_hash
+                            .as_str()
+                            .ok_or(BlobTxConversionError::BlobVersionedHashesMissing)?,
+                    )
+                    .map_err(BlobTxConversionError::FromHexError)?,
+                ))
             })
             .collect::<Result<Vec<VersionedHash>, BlobTxConversionError>>()?;
         let message = BlobTransaction {
