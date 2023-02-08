@@ -82,7 +82,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Attempts to connect to the EL and confirm that it is ready for capella.
     pub async fn check_capella_readiness(&self) -> CapellaReadiness {
-
         //FIXME(sean) stub this out until the EL implements this on eip4844 branches
         return CapellaReadiness::Ready;
 

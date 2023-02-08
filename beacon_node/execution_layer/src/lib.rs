@@ -14,7 +14,7 @@ pub use engine_api::{http, http::deposit_methods, http::HttpJsonRpc};
 use engines::{Engine, EngineError};
 pub use engines::{EngineState, ForkchoiceState};
 use eth2::types::{builder_bid::SignedBuilderBid, ForkVersionedResponse};
-use ethers_core::types::Transaction as EthersTransaction;
+use ethers_core::types::{Transaction as EthersTransaction, U64};
 use fork_choice::ForkchoiceUpdateParameters;
 use lru::LruCache;
 use payload_status::process_payload_status;
@@ -31,6 +31,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use hex::FromHexError;
 use strum::AsRefStr;
 use task_executor::TaskExecutor;
 use tokio::{
@@ -39,8 +40,10 @@ use tokio::{
 };
 use tokio_stream::wrappers::WatchStream;
 use types::consts::eip4844::BLOB_TX_TYPE;
-use types::transaction::{AccessTuple, BlobTransaction};
-use types::{AbstractExecPayload, BeaconStateError, Blob, ExecPayload, KzgCommitment};
+use types::transaction::{AccessTuple, BlobTransaction, EcdsaSignature, SignedBlobTransaction};
+use types::{
+    AbstractExecPayload, BeaconStateError, Blob, ExecPayload, KzgCommitment, VersionedHash,
+};
 use types::{
     BlindedPayload, BlockType, ChainSpec, Epoch, ExecutionBlockHash, ForkName,
     ProposerPreparationData, PublicKeyBytes, Signature, SignedBeaconBlock, Slot, Transaction,
@@ -2030,10 +2033,14 @@ pub enum BlobTxConversionError {
     MaxFeePerDataGasMissing,
     /// Missing the `blob_versioned_hashes` field.
     BlobVersionedHashesMissing,
+    /// `y_parity` field was greater than one.
+    InvalidYParity,
     /// There was an error converting the transaction to SSZ.
     SszError(ssz_types::Error),
     /// There was an error converting the transaction from JSON.
     SerdeJson(serde_json::Error),
+    /// There was an error converting the transaction from hex.
+    FromHexError(FromHexError),
 }
 
 impl From<ssz_types::Error> for BlobTxConversionError {
@@ -2103,16 +2110,22 @@ fn ethers_tx_to_bytes<T: EthSpec>(
             .as_str()
             .ok_or(BlobTxConversionError::MaxFeePerDataGasMissing)?
             .parse()
-            .map_err(|_| BlobTxConversionError::MaxFeePerDataGasMissing)?;
-        let blob_versioned_hashes = serde_json::from_str(
-            transaction
-                .other
-                .get("blobVersionedHashes")
-                .ok_or(BlobTxConversionError::BlobVersionedHashesMissing)?
-                .as_str()
-                .ok_or(BlobTxConversionError::BlobVersionedHashesMissing)?,
-        )?;
-        BlobTransaction {
+            .map_err(BlobTxConversionError::FromHexError)?;
+        let blob_versioned_hashes = transaction
+            .other
+            .get("blobVersionedHashes")
+            .ok_or(BlobTxConversionError::BlobVersionedHashesMissing)?
+            .as_array()
+            .ok_or(BlobTxConversionError::BlobVersionedHashesMissing)?
+            .into_iter()
+            .map(|versioned_hash| {
+                versioned_hash
+                    .ok_or(BlobTxConversionError::BlobVersionedHashesMissing)?
+                    .parse()
+                    .map_err(BlobTxConversionError::FromHexError)?;
+            })
+            .collect::<Result<Vec<VersionedHash>, BlobTxConversionError>>()?;
+        let message = BlobTransaction {
             chain_id,
             nonce,
             max_priority_fee_per_gas,
@@ -2123,9 +2136,23 @@ fn ethers_tx_to_bytes<T: EthSpec>(
             data,
             access_list,
             max_fee_per_data_gas,
-            blob_versioned_hashes,
-        }
-        .as_ssz_bytes()
+            blob_versioned_hashes: VariableList::new(blob_versioned_hashes)?,
+        };
+
+        let y_parity = if transaction.v == U64::zero() {
+            false
+        } else if transaction.v == U64::one() {
+            true
+        } else {
+            return Err(BlobTxConversionError::InvalidYParity);
+        };
+        let r = transaction.r;
+        let s = transaction.s;
+        let signature = EcdsaSignature { y_parity, r, s };
+
+        let mut signed_tx = SignedBlobTransaction { message, signature }.as_ssz_bytes();
+        signed_tx.insert(0, BLOB_TX_TYPE);
+        signed_tx
     } else {
         transaction.rlp().to_vec()
     };

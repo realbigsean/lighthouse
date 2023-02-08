@@ -1011,7 +1011,7 @@ impl HttpJsonRpc {
             get_payload_v1: true,
             get_payload_v2: true,
             get_payload_v3: true,
-            exchange_transition_configuration_v1:true,
+            exchange_transition_configuration_v1: true,
         });
         let params = json!([LIGHTHOUSE_CAPABILITIES]);
 
@@ -1063,7 +1063,6 @@ impl HttpJsonRpc {
         &self,
         age_limit: Option<Duration>,
     ) -> Result<EngineCapabilities, Error> {
-
         //FIXME(sean) stubbed out till el's are ready
         return self.exchange_capabilities().await;
         let mut lock = self.engine_capabilities_cache.lock().await;
