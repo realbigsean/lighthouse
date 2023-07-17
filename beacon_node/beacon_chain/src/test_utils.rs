@@ -523,18 +523,23 @@ where
             serde_json::from_reader(eth2_network_config::get_trusted_setup::<E::Kzg>())
                 .map_err(|e| format!("Unable to read trusted setup file: {}", e))
                 .unwrap();
+        let chain_config = self.chain_config.unwrap_or_default();
 
         let mut builder = BeaconChainBuilder::new(self.eth_spec_instance)
             .logger(log.clone())
             .custom_spec(spec)
             .store(self.store.expect("cannot build without store"))
-            .store_migrator_config(MigratorConfig::default().blocking())
+            .store_migrator_config(
+                MigratorConfig::default()
+                    .blocking()
+                    .epochs_per_migration(chain_config.epochs_per_migration),
+            )
             .task_executor(self.runtime.task_executor.clone())
             .execution_layer(self.execution_layer)
             .dummy_eth1_backend()
             .expect("should build dummy backend")
             .shutdown_sender(shutdown_tx)
-            .chain_config(self.chain_config.unwrap_or_default())
+            .chain_config(chain_config)
             .event_handler(Some(ServerSentEventHandler::new_with_capacity(
                 log.clone(),
                 5,

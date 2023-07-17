@@ -14,7 +14,6 @@ pub use engine_api::{http, http::deposit_methods, http::HttpJsonRpc};
 use engines::{Engine, EngineError};
 pub use engines::{EngineState, ForkchoiceState};
 use eth2::types::SignedBlockContents;
-use eth2::types::{builder_bid::SignedBuilderBid, ForkVersionedResponse};
 use ethers_core::abi::ethereum_types::FromStrRadixErr;
 use ethers_core::types::Transaction as EthersTransaction;
 use fork_choice::ForkchoiceUpdateParameters;
@@ -43,12 +42,12 @@ use tree_hash::TreeHash;
 use types::beacon_block_body::KzgCommitments;
 use types::blob_sidecar::Blobs;
 use types::KzgProofs;
-use types::{AbstractExecPayload, BeaconStateError, ExecPayload, VersionedHash};
 use types::{
-    BlindedPayload, BlockType, ChainSpec, Epoch, ExecutionPayloadCapella, ExecutionPayloadDeneb,
-    ExecutionPayloadMerge,
+    builder_bid::SignedBuilderBid, BlindedPayload, BlockType, ChainSpec, Epoch,
+    ExecutionPayloadCapella, ExecutionPayloadDeneb, ExecutionPayloadMerge, ForkVersionedResponse,
+    ProposerPreparationData, PublicKeyBytes, Signature, Slot, Transaction,
 };
-use types::{ProposerPreparationData, PublicKeyBytes, Signature, Slot, Transaction};
+use types::{AbstractExecPayload, BeaconStateError, ExecPayload, VersionedHash};
 
 mod block_hash;
 mod engine_api;
@@ -2125,6 +2124,22 @@ async fn timed_future<F: Future<Output = T>, T>(metric: &str, future: F) -> (T, 
     (result, duration)
 }
 
+fn noop<T: EthSpec>(
+    _: &ExecutionLayer<T>,
+    _: ExecutionPayloadRef<T>,
+) -> Option<ExecutionPayload<T>> {
+    None
+}
+
+#[cfg(test)]
+/// Returns the duration since the unix epoch.
+fn timestamp_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_secs()
+}
+
 #[derive(Debug)]
 pub enum BlobTxConversionError {
     /// The transaction type was not set.
@@ -2200,13 +2215,6 @@ fn ethers_tx_to_ssz<T: EthSpec>(
     tx: EthersTransaction,
 ) -> Result<Transaction<T::MaxBytesPerTransaction>, BlobTxConversionError> {
     VariableList::new(tx.rlp().to_vec()).map_err(Into::into)
-}
-
-fn noop<T: EthSpec>(
-    _: &ExecutionLayer<T>,
-    _: ExecutionPayloadRef<T>,
-) -> Option<ExecutionPayload<T>> {
-    None
 }
 
 #[cfg(test)]
@@ -2354,13 +2362,4 @@ mod test {
             })
             .await;
     }
-}
-
-#[cfg(test)]
-/// Returns the duration since the unix epoch.
-fn timestamp_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|_| Duration::from_secs(0))
-        .as_secs()
 }
