@@ -585,7 +585,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             work: Work::BlobsByRootsRequest(Box::new(process_fn)),
         })
     }
-    /// END
 
     /// Create a new work event to process `LightClientBootstrap`s from the RPC network.
     pub fn send_lightclient_bootstrap_request(
