@@ -11,7 +11,7 @@ use crate::{
 };
 use bls::SignatureBytes;
 use environment::RuntimeContext;
-use eth2::types::{FullBlockContents, PublishBlockRequest};
+use eth2::types::{ProduceBlockV3Response, PublishBlockRequest};
 use eth2::{BeaconNodeHttpClient, StatusCode};
 use slog::{crit, debug, error, info, trace, warn, Logger};
 use slot_clock::SlotClock;
@@ -476,79 +476,79 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
 
         let signing_timer = metrics::start_timer(&metrics::BLOCK_SIGNING_TIMES);
 
-        let res = match unsigned_block {
-            UnsignedBlock::Full(block_contents) => {
-                let (block, maybe_blobs) = block_contents.deconstruct();
-                self_ref
-                    .validator_store
-                    .sign_block(*validator_pubkey_ref, block, current_slot)
-                    .await
-                    .map(|b| SignedBlock::Full(PublishBlockRequest::new(b, maybe_blobs)))
-            }
-            UnsignedBlock::Blinded(block) => self_ref
-                .validator_store
-                .sign_block(*validator_pubkey_ref, block, current_slot)
-                .await
-                .map(SignedBlock::Blinded),
-        };
+        // let res = match unsigned_block {
+        //     UnsignedBlock::Full(block_contents) => {
+        //         let (block, maybe_blobs) = block_contents.deconstruct();
+        //         self_ref
+        //             .validator_store
+        //             .sign_block(*validator_pubkey_ref, block, current_slot)
+        //             .await
+        //             .map(|b| SignedBlock::Full(PublishBlockRequest::new(b, maybe_blobs)))
+        //     }
+        //     UnsignedBlock::Blinded(block) => self_ref
+        //         .validator_store
+        //         .sign_block(*validator_pubkey_ref, block, current_slot)
+        //         .await
+        //         .map(SignedBlock::Blinded),
+        // };
 
-        let signed_block = match res {
-            Ok(block) => block,
-            Err(ValidatorStoreError::UnknownPubkey(pubkey)) => {
-                // A pubkey can be missing when a validator was recently removed
-                // via the API.
-                warn!(
-                    log,
-                    "Missing pubkey for block";
-                    "info" => "a validator may have recently been removed from this VC",
-                    "pubkey" => ?pubkey,
-                    "slot" => ?slot
-                );
-                return Ok(());
-            }
-            Err(e) => {
-                return Err(BlockError::Recoverable(format!(
-                    "Unable to sign block: {:?}",
-                    e
-                )))
-            }
-        };
+        // let signed_block = match res {
+        //     Ok(block) => block,
+        //     Err(ValidatorStoreError::UnknownPubkey(pubkey)) => {
+        //         // A pubkey can be missing when a validator was recently removed
+        //         // via the API.
+        //         warn!(
+        //             log,
+        //             "Missing pubkey for block";
+        //             "info" => "a validator may have recently been removed from this VC",
+        //             "pubkey" => ?pubkey,
+        //             "slot" => ?slot
+        //         );
+        //         return Ok(());
+        //     }
+        //     Err(e) => {
+        //         return Err(BlockError::Recoverable(format!(
+        //             "Unable to sign block: {:?}",
+        //             e
+        //         )))
+        //     }
+        // };
 
-        let signing_time_ms =
-            Duration::from_secs_f64(signing_timer.map_or(0.0, |t| t.stop_and_record())).as_millis();
+        // let signing_time_ms =
+        //     Duration::from_secs_f64(signing_timer.map_or(0.0, |t| t.stop_and_record())).as_millis();
 
-        info!(
-            log,
-            "Publishing signed block";
-            "slot" => slot.as_u64(),
-            "signing_time_ms" => signing_time_ms,
-        );
+        // info!(
+        //     log,
+        //     "Publishing signed block";
+        //     "slot" => slot.as_u64(),
+        //     "signing_time_ms" => signing_time_ms,
+        // );
 
-        // Publish block with first available beacon node.
-        //
-        // Try the proposer nodes first, since we've likely gone to efforts to
-        // protect them from DoS attacks and they're most likely to successfully
-        // publish a block.
-        proposer_fallback
-            .request_proposers_first(
-                RequireSynced::No,
-                OfflineOnFailure::Yes,
-                |beacon_node| async {
-                    self.publish_signed_block_contents(&signed_block, beacon_node)
-                        .await
-                },
-            )
-            .await?;
+        // // Publish block with first available beacon node.
+        // //
+        // // Try the proposer nodes first, since we've likely gone to efforts to
+        // // protect them from DoS attacks and they're most likely to successfully
+        // // publish a block.
+        // proposer_fallback
+        //     .request_proposers_first(
+        //         RequireSynced::No,
+        //         OfflineOnFailure::Yes,
+        //         |beacon_node| async {
+        //             self.publish_signed_block_contents(&signed_block, beacon_node)
+        //                 .await
+        //         },
+        //     )
+        //     .await?;
 
-        info!(
-            log,
-            "Successfully published block";
-            "block_type" => ?signed_block.block_type(),
-            "deposits" => signed_block.num_deposits(),
-            "attestations" => signed_block.num_attestations(),
-            "graffiti" => ?graffiti.map(|g| g.as_utf8_lossy()),
-            "slot" => signed_block.slot().as_u64(),
-        );
+        // info!(
+        //     log,
+        //     "Successfully published block";
+        //     "block_type" => ?signed_block.block_type(),
+        //     "deposits" => signed_block.num_deposits(),
+        //     "attestations" => signed_block.num_attestations(),
+        //     "graffiti" => ?graffiti.map(|g| g.as_utf8_lossy()),
+        //     "slot" => signed_block.slot().as_u64(),
+        // );
 
         Ok(())
     }
@@ -594,59 +594,60 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
         builder_proposal: bool,
         log: &Logger,
     ) -> Result<UnsignedBlock<E>, BlockError> {
-        let unsigned_block = if !builder_proposal {
-            let _get_timer = metrics::start_timer_vec(
-                &metrics::BLOCK_SERVICE_TIMES,
-                &[metrics::BEACON_BLOCK_HTTP_GET],
-            );
-            UnsignedBlock::Full(
-                beacon_node
-                    .get_validator_blocks::<E>(slot, randao_reveal_ref, graffiti.as_ref())
-                    .await
-                    .map_err(|e| {
-                        BlockError::Recoverable(format!(
-                            "Error from beacon node when producing block: {:?}",
-                            e
-                        ))
-                    })?
-                    .data,
-            )
-        } else {
-            let _get_timer = metrics::start_timer_vec(
-                &metrics::BLOCK_SERVICE_TIMES,
-                &[metrics::BLINDED_BEACON_BLOCK_HTTP_GET],
-            );
-            UnsignedBlock::Blinded(
-                beacon_node
-                    .get_validator_blinded_blocks::<E>(slot, randao_reveal_ref, graffiti.as_ref())
-                    .await
-                    .map_err(|e| {
-                        BlockError::Recoverable(format!(
-                            "Error from beacon node when producing block: {:?}",
-                            e
-                        ))
-                    })?
-                    .data,
-            )
-        };
+        // let unsigned_block = if !builder_proposal {
+        //     let _get_timer = metrics::start_timer_vec(
+        //         &metrics::BLOCK_SERVICE_TIMES,
+        //         &[metrics::BEACON_BLOCK_HTTP_GET],
+        //     );
+        //     UnsignedBlock::Full(
+        //         beacon_node
+        //             .get_validator_blocks::<E>(slot, randao_reveal_ref, graffiti.as_ref())
+        //             .await
+        //             .map_err(|e| {
+        //                 BlockError::Recoverable(format!(
+        //                     "Error from beacon node when producing block: {:?}",
+        //                     e
+        //                 ))
+        //             })?
+        //             .data,
+        //     )
+        // } else {
+        //     let _get_timer = metrics::start_timer_vec(
+        //         &metrics::BLOCK_SERVICE_TIMES,
+        //         &[metrics::BLINDED_BEACON_BLOCK_HTTP_GET],
+        //     );
+        //     UnsignedBlock::Blinded(
+        //         beacon_node
+        //             .get_validator_blinded_blocks::<E>(slot, randao_reveal_ref, graffiti.as_ref())
+        //             .await
+        //             .map_err(|e| {
+        //                 BlockError::Recoverable(format!(
+        //                     "Error from beacon node when producing block: {:?}",
+        //                     e
+        //                 ))
+        //             })?
+        //             .data,
+        //     )
+        // };
 
-        info!(
-            log,
-            "Received unsigned block";
-            "slot" => slot.as_u64(),
-        );
-        if proposer_index != Some(unsigned_block.proposer_index()) {
-            return Err(BlockError::Recoverable(
-                "Proposer index does not match block proposer. Beacon chain re-orged".to_string(),
-            ));
-        }
+        // info!(
+        //     log,
+        //     "Received unsigned block";
+        //     "slot" => slot.as_u64(),
+        // );
+        // if proposer_index != Some(unsigned_block.proposer_index()) {
+        //     return Err(BlockError::Recoverable(
+        //         "Proposer index does not match block proposer. Beacon chain re-orged".to_string(),
+        //     ));
+        // }
 
-        Ok::<_, BlockError>(unsigned_block)
+        // Ok::<_, BlockError>(unsigned_block)
+        todo!()
     }
 }
 
 pub enum UnsignedBlock<E: EthSpec> {
-    Full(FullBlockContents<E>),
+    Full(ProduceBlockV3Response<E>),
     Blinded(BlindedBeaconBlock<E>),
 }
 

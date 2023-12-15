@@ -1,7 +1,7 @@
 use crate::block_verification_types::{AsBlock, RpcBlock};
 use crate::observed_operations::ObservationOutcome;
 pub use crate::persisted_beacon_chain::PersistedBeaconChain;
-use crate::BeaconBlockResponseWrapper;
+use crate::BeaconBlockResponse;
 pub use crate::{
     beacon_chain::{BEACON_CHAIN_DB_KEY, ETH1_CACHE_DB_KEY, FORK_CHOICE_DB_KEY, OP_POOL_DB_KEY},
     migrate::MigratorConfig,
@@ -16,7 +16,7 @@ use crate::{
     StateSkipConfig,
 };
 use bls::get_withdrawal_credentials;
-use eth2::types::SignedBlockContentsTuple;
+use eth2::types::{ProduceBlockV3Response, SignedBlockContentsTuple};
 use eth2_network_config::TRUSTED_SETUP_BYTES;
 use execution_layer::test_utils::generate_genesis_header;
 use execution_layer::{
@@ -850,8 +850,12 @@ where
         let graffiti = Graffiti::from(self.rng.lock().gen::<[u8; 32]>());
 
         let randao_reveal = self.sign_randao_reveal(&state, proposer_index, slot);
-
-        let BeaconBlockResponseWrapper::Full(block_response) = self
+        let BeaconBlockResponse {
+            block,
+            state,
+            execution_payload_value,
+            consensus_block_value,
+        } = self
             .chain
             .produce_block_on_state(
                 state,
@@ -868,22 +872,23 @@ where
             panic!("Should always be a full payload response");
         };
 
-        let signed_block = block_response.block.sign(
+        let signed_block = block.block().clone().sign(
             &self.validator_keypairs[proposer_index].sk,
-            &block_response.state.fork(),
-            block_response.state.genesis_validators_root(),
+            &state.fork(),
+            state.genesis_validators_root(),
             &self.spec,
         );
 
-        let block_contents: SignedBlockContentsTuple<E> = match &signed_block {
-            SignedBeaconBlock::Base(_)
-            | SignedBeaconBlock::Altair(_)
-            | SignedBeaconBlock::Merge(_)
-            | SignedBeaconBlock::Capella(_) => (signed_block, None),
-            SignedBeaconBlock::Deneb(_) => (signed_block, block_response.blob_items),
-        };
+        // let block_contents: SignedBlockContentsTuple<E> = match &signed_block {
+        //     SignedBeaconBlock::Base(_)
+        //     | SignedBeaconBlock::Altair(_)
+        //     | SignedBeaconBlock::Merge(_)
+        //     | SignedBeaconBlock::Capella(_) => (signed_block, None),
+        //     SignedBeaconBlock::Deneb(_) => (signed_block, block_response.blob_items),
+        // };
 
-        (block_contents, block_response.state)
+        // (block_contents, block_response.state)
+        todo!()
     }
 
     /// Useful for the `per_block_processing` tests. Creates a block, and returns the state after
@@ -912,7 +917,12 @@ where
 
         let pre_state = state.clone();
 
-        let BeaconBlockResponseWrapper::Full(block_response) = self
+        let BeaconBlockResponse {
+            block,
+            state,
+            execution_payload_value,
+            consensus_block_value,
+        } = self
             .chain
             .produce_block_on_state(
                 state,
@@ -929,21 +939,22 @@ where
             panic!("Should always be a full payload response");
         };
 
-        let signed_block = block_response.block.sign(
+        let signed_block = block.block().clone().sign(
             &self.validator_keypairs[proposer_index].sk,
-            &block_response.state.fork(),
-            block_response.state.genesis_validators_root(),
+            &state.fork(),
+            state.genesis_validators_root(),
             &self.spec,
         );
 
-        let block_contents: SignedBlockContentsTuple<E> = match &signed_block {
-            SignedBeaconBlock::Base(_)
-            | SignedBeaconBlock::Altair(_)
-            | SignedBeaconBlock::Merge(_)
-            | SignedBeaconBlock::Capella(_) => (signed_block, None),
-            SignedBeaconBlock::Deneb(_) => (signed_block, block_response.blob_items),
-        };
-        (block_contents, pre_state)
+        // let block_contents: SignedBlockContentsTuple<E> = match &signed_block {
+        //     SignedBeaconBlock::Base(_)
+        //     | SignedBeaconBlock::Altair(_)
+        //     | SignedBeaconBlock::Merge(_)
+        //     | SignedBeaconBlock::Capella(_) => (signed_block, None),
+        //     SignedBeaconBlock::Deneb(_) => (signed_block, block_response.blob_items),
+        // };
+        // (block_contents, pre_state)
+        todo!()
     }
 
     /// Create a randao reveal for a block at `slot`.

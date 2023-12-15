@@ -2664,24 +2664,24 @@ impl ApiTester {
                 .unwrap()
                 .expect("block bytes");
 
-            let block_contents =
-                FullBlockContents::<E>::from_ssz_bytes(&block_bytes, &self.chain.spec)
-                    .expect("block contents bytes can be decoded");
+            // let block_contents = Produce::<E>::from_ssz_bytes(&block_bytes, &self.chain.spec)
+            //     .expect("block contents bytes can be decoded");
 
-            let signed_block_contents =
-                block_contents.sign(&sk, &fork, genesis_validators_root, &self.chain.spec);
+            // let signed_block_contents =
+            //     block_contents.sign(&sk, &fork, genesis_validators_root, &self.chain.spec);
 
-            self.client
-                .post_beacon_blocks_ssz(&signed_block_contents)
-                .await
-                .unwrap();
+            // self.client
+            //     .post_beacon_blocks_ssz(&signed_block_contents)
+            //     .await
+            //     .unwrap();
 
-            assert_eq!(
-                self.chain.head_beacon_block().as_ref(),
-                signed_block_contents.signed_block()
-            );
+            // assert_eq!(
+            //     self.chain.head_beacon_block().as_ref(),
+            //     signed_block_contents.signed_block()
+            // );
 
-            self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+            // self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+            todo!()
         }
 
         self
@@ -2751,26 +2751,27 @@ impl ApiTester {
 
                 self.chain.slot_clock.set_slot(slot.as_u64() + 1);
             } else {
-                let block_contents = <FullBlockContents<E>>::from_ssz_bytes(
-                    &fork_version_response_bytes.unwrap(),
-                    &self.chain.spec,
-                )
-                .expect("block contents bytes can be decoded");
+                // let block_contents = <FullBlockContents<E>>::from_ssz_bytes(
+                //     &fork_version_response_bytes.unwrap(),
+                //     &self.chain.spec,
+                // )
+                // .expect("block contents bytes can be decoded");
 
-                let signed_block_contents =
-                    block_contents.sign(&sk, &fork, genesis_validators_root, &self.chain.spec);
+                // let signed_block_contents =
+                //     block_contents.sign(&sk, &fork, genesis_validators_root, &self.chain.spec);
 
-                self.client
-                    .post_beacon_blocks_ssz(&signed_block_contents)
-                    .await
-                    .unwrap();
+                // self.client
+                //     .post_beacon_blocks_ssz(&signed_block_contents)
+                //     .await
+                //     .unwrap();
 
-                assert_eq!(
-                    self.chain.head_beacon_block().as_ref(),
-                    signed_block_contents.signed_block()
-                );
+                // assert_eq!(
+                //     self.chain.head_beacon_block().as_ref(),
+                //     signed_block_contents.signed_block()
+                // );
 
-                self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+                // self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+                todo!()
             }
         }
 
@@ -2973,32 +2974,33 @@ impl ApiTester {
                 .unwrap()
                 .expect("block bytes");
 
-            let block_contents =
-                FullBlockContents::<E>::from_ssz_bytes(&block_contents_bytes, &self.chain.spec)
-                    .expect("block contents bytes can be decoded");
+            // let block_contents =
+            //     FullBlockContents::<E>::from_ssz_bytes(&block_contents_bytes, &self.chain.spec)
+            //         .expect("block contents bytes can be decoded");
 
-            let signed_block_contents =
-                block_contents.sign(&sk, &fork, genesis_validators_root, &self.chain.spec);
+            // let signed_block_contents =
+            //     block_contents.sign(&sk, &fork, genesis_validators_root, &self.chain.spec);
 
-            self.client
-                .post_beacon_blinded_blocks_ssz(
-                    &signed_block_contents.signed_block().clone_as_blinded(),
-                )
-                .await
-                .unwrap();
+            // self.client
+            //     .post_beacon_blinded_blocks_ssz(
+            //         &signed_block_contents.signed_block().clone_as_blinded(),
+            //     )
+            //     .await
+            //     .unwrap();
 
-            let head_block = self
-                .client
-                .get_beacon_blocks(CoreBlockId::Head)
-                .await
-                .unwrap()
-                .unwrap()
-                .data;
+            // let head_block = self
+            //     .client
+            //     .get_beacon_blocks(CoreBlockId::Head)
+            //     .await
+            //     .unwrap()
+            //     .unwrap()
+            //     .data;
 
-            let signed_block = signed_block_contents.signed_block();
-            assert_eq!(&head_block, signed_block);
+            // let signed_block = signed_block_contents.signed_block();
+            // assert_eq!(&head_block, signed_block);
 
-            self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+            // self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+            todo!()
         }
     }
 

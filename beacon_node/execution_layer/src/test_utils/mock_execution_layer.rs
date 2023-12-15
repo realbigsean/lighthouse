@@ -149,8 +149,8 @@ impl<T: EthSpec> MockExecutionLayer<T> {
             .unwrap();
 
         let payload: ExecutionPayload<T> = match block_proposal_content_type {
-            BlockProposalContentsType::Full(block) => block.to_payload().into(),
-            BlockProposalContentsType::Blinded(_) => panic!("Should always be a full payload"),
+            BlockProposalContents::Full(block) => block.to_payload().into(),
+            BlockProposalContents::Blinded(_) => panic!("Should always be a full payload"),
         };
 
         let block_hash = payload.block_hash();
@@ -188,8 +188,8 @@ impl<T: EthSpec> MockExecutionLayer<T> {
             .unwrap();
 
         match block_proposal_content_type {
-            BlockProposalContentsType::Full(block) => {
-                let payload_header = block.to_payload();
+            BlockProposalContents::Full(block) => {
+                let payload_header: BlindedPayload<T> = block.to_payload().into();
                 self.assert_valid_execution_payload_on_head(
                     payload,
                     payload_header,
@@ -201,8 +201,8 @@ impl<T: EthSpec> MockExecutionLayer<T> {
                 )
                 .await;
             }
-            BlockProposalContentsType::Blinded(block) => {
-                let payload_header = block.to_payload();
+            BlockProposalContents::Blinded(block) => {
+                let payload_header: BlindedPayload<T> = block.to_payload_header().into();
                 self.assert_valid_execution_payload_on_head(
                     payload,
                     payload_header,

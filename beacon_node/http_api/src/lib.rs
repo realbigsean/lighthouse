@@ -10,7 +10,6 @@ mod attester_duties;
 mod block_id;
 mod block_packing_efficiency;
 mod block_rewards;
-mod build_block_contents;
 mod builder_states;
 mod database;
 mod metrics;

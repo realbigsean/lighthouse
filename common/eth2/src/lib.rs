@@ -1763,7 +1763,7 @@ impl BeaconNodeHttpClient {
         slot: Slot,
         randao_reveal: &SignatureBytes,
         graffiti: Option<&Graffiti>,
-    ) -> Result<ForkVersionedResponse<FullBlockContents<T>>, Error> {
+    ) -> Result<ForkVersionedResponse<BlockContents<T>>, Error> {
         self.get_validator_blocks_modular(slot, randao_reveal, graffiti, SkipRandaoVerification::No)
             .await
     }
@@ -1775,7 +1775,7 @@ impl BeaconNodeHttpClient {
         randao_reveal: &SignatureBytes,
         graffiti: Option<&Graffiti>,
         skip_randao_verification: SkipRandaoVerification,
-    ) -> Result<ForkVersionedResponse<FullBlockContents<T>>, Error> {
+    ) -> Result<ForkVersionedResponse<BlockContents<T>>, Error> {
         let path = self
             .get_validator_blocks_path::<T>(slot, randao_reveal, graffiti, skip_randao_verification)
             .await?;
@@ -1895,7 +1895,7 @@ impl BeaconNodeHttpClient {
             Ok(ForkVersionedBeaconBlockType::Blinded(blinded_payload))
         } else {
             let full_payload = response
-                .json::<ForkVersionedResponse<FullBlockContents<T>>>()
+                .json::<ForkVersionedResponse<BlockContents<T>>>()
                 .await?;
             Ok(ForkVersionedBeaconBlockType::Full(full_payload))
         }

@@ -13,7 +13,7 @@ use crate::{
     ExecutionPayloadError,
 };
 use execution_layer::{
-    BlockProposalContents, BlockProposalContentsType, BuilderParams, NewPayloadRequest,
+    BlockProposalContents, BuilderParams, FullBlockProposalContents, NewPayloadRequest,
     PayloadAttributes, PayloadStatus,
 };
 use fork_choice::{InvalidationOperation, PayloadVerificationStatus};
@@ -30,7 +30,7 @@ use tree_hash::TreeHash;
 use types::payload::BlockProductionVersion;
 use types::*;
 
-pub type PreparePayloadResult<E> = Result<BlockProposalContentsType<E>, BlockProductionError>;
+pub type PreparePayloadResult<E> = Result<BlockProposalContents<E>, BlockProductionError>;
 pub type PreparePayloadHandle<E> = JoinHandle<Option<PreparePayloadResult<E>>>;
 
 #[derive(PartialEq)]
@@ -486,7 +486,7 @@ pub async fn prepare_execution_payload<T>(
     withdrawals: Option<Vec<Withdrawal>>,
     parent_beacon_block_root: Option<Hash256>,
     block_production_version: BlockProductionVersion,
-) -> Result<BlockProposalContentsType<T::EthSpec>, BlockProductionError>
+) -> Result<BlockProposalContents<T::EthSpec>, BlockProductionError>
 where
     T: BeaconChainTypes,
 {
@@ -506,11 +506,8 @@ where
         if is_terminal_block_hash_set && !is_activation_epoch_reached {
             // Use the "empty" payload if there's a terminal block hash, but we haven't reached the
             // terminal block epoch yet.
-            return Ok(BlockProposalContentsType::Full(
-                BlockProposalContents::Payload {
-                    payload: FullPayload::default_at_fork(fork)?,
-                    block_value: Uint256::zero(),
-                },
+            return Ok(BlockProposalContents::Full(
+                FullBlockProposalContents::default_at_fork(fork).unwrap(), //TODO: fix
             ));
         }
 
@@ -524,11 +521,8 @@ where
         } else {
             // If the merge transition hasn't occurred yet and the EL hasn't found the terminal
             // block, return an "empty" payload.
-            return Ok(BlockProposalContentsType::Full(
-                BlockProposalContents::Payload {
-                    payload: FullPayload::default_at_fork(fork)?,
-                    block_value: Uint256::zero(),
-                },
+            return Ok(BlockProposalContents::Full(
+                FullBlockProposalContents::default_at_fork(fork).unwrap(), //TODO: fix
             ));
         }
     } else {

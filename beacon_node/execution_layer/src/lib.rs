@@ -33,6 +33,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use strum::AsRefStr;
+use superstruct::superstruct;
 use task_executor::TaskExecutor;
 use tokio::{
     sync::{Mutex, MutexGuard, RwLock},
@@ -44,7 +45,9 @@ use types::beacon_block_body::KzgCommitments;
 use types::builder_bid::BuilderBid;
 use types::payload::BlockProductionVersion;
 use types::{
-    AbstractExecPayload, BlobsList, ExecutionPayloadDeneb, KzgProofs, SignedBlindedBeaconBlock,
+    AbstractExecPayload, BlobsList, ExecutionPayloadDeneb, ExecutionPayloadHeaderCapella,
+    ExecutionPayloadHeaderDeneb, ExecutionPayloadHeaderMerge, FullPayloadMerge, KzgProofs,
+    SignedBlindedBeaconBlock,
 };
 use types::{
     BeaconStateError, BlindedPayload, ChainSpec, Epoch, ExecPayload, ExecutionPayloadCapella,
@@ -88,29 +91,58 @@ pub enum ProvenancedPayload<P> {
     Builder(P),
 }
 
-impl<E: EthSpec> TryFrom<BuilderBid<E>> for ProvenancedPayload<BlockProposalContentsType<E>> {
-    type Error = Error;
-
-    fn try_from(value: BuilderBid<E>) -> Result<Self, Error> {
+impl<E: EthSpec> From<BuilderBid<E>> for ProvenancedPayload<BlockProposalContents<E>> {
+    fn from(value: BuilderBid<E>) -> Self {
         let block_proposal_contents = match value {
-            BuilderBid::Merge(builder_bid) => BlockProposalContents::Payload {
-                payload: ExecutionPayloadHeader::Merge(builder_bid.header).into(),
-                block_value: builder_bid.value,
-            },
-            BuilderBid::Capella(builder_bid) => BlockProposalContents::Payload {
-                payload: ExecutionPayloadHeader::Capella(builder_bid.header).into(),
-                block_value: builder_bid.value,
-            },
-            BuilderBid::Deneb(builder_bid) => BlockProposalContents::PayloadAndBlobs {
-                payload: ExecutionPayloadHeader::Deneb(builder_bid.header).into(),
-                block_value: builder_bid.value,
-                kzg_commitments: builder_bid.blob_kzg_commitments,
-                blobs_and_proofs: None,
-            },
+            BuilderBid::Merge(builder_bid) => {
+                BlindedBlockProposalContents::Merge(BlindedBlockProposalContentsMerge {
+                    payload: builder_bid.header,
+                    block_value: builder_bid.value,
+                })
+            }
+            BuilderBid::Capella(builder_bid) => {
+                BlindedBlockProposalContents::Capella(BlindedBlockProposalContentsCapella {
+                    payload: builder_bid.header,
+                    block_value: builder_bid.value,
+                })
+            }
+            BuilderBid::Deneb(builder_bid) => {
+                BlindedBlockProposalContents::Deneb(BlindedBlockProposalContentsDeneb {
+                    payload: builder_bid.header,
+                    block_value: builder_bid.value,
+                    kzg_commitments: builder_bid.blob_kzg_commitments,
+                })
+            }
         };
-        Ok(ProvenancedPayload::Builder(
-            BlockProposalContentsType::Blinded(block_proposal_contents),
-        ))
+        ProvenancedPayload::Builder(BlockProposalContents::Blinded(block_proposal_contents))
+    }
+}
+impl<E: EthSpec> From<GetPayloadResponse<E>> for ProvenancedPayload<BlockProposalContents<E>> {
+    fn from(value: GetPayloadResponse<E>) -> Self {
+        let block_proposal_contents = match value {
+            GetPayloadResponse::Merge(payload_response) => {
+                FullBlockProposalContents::Merge(FullBlockProposalContentsMerge {
+                    payload: payload_response.execution_payload,
+                    block_value: payload_response.block_value,
+                })
+            }
+            GetPayloadResponse::Capella(payload_response) => {
+                FullBlockProposalContents::Capella(FullBlockProposalContentsCapella {
+                    payload: payload_response.execution_payload,
+                    block_value: payload_response.block_value,
+                })
+            }
+            GetPayloadResponse::Deneb(payload_response) => {
+                FullBlockProposalContents::Deneb(FullBlockProposalContentsDeneb {
+                    payload: payload_response.execution_payload,
+                    block_value: payload_response.block_value,
+                    kzg_commitments: payload_response.blobs_bundle.commitments,
+                    blobs: payload_response.blobs_bundle.blobs,
+                    proofs: payload_response.blobs_bundle.proofs,
+                })
+            }
+        };
+        ProvenancedPayload::Local(BlockProposalContents::Full(block_proposal_contents))
     }
 }
 
@@ -153,131 +185,163 @@ impl From<ApiError> for Error {
     }
 }
 
-pub enum BlockProposalContentsType<E: EthSpec> {
-    Full(BlockProposalContents<E, FullPayload<E>>),
-    Blinded(BlockProposalContents<E, BlindedPayload<E>>),
+pub enum BlockProposalContents<E: EthSpec> {
+    Full(FullBlockProposalContents<E>),
+    Blinded(BlindedBlockProposalContents<E>),
 }
 
-pub enum BlockProposalContents<T: EthSpec, Payload: AbstractExecPayload<T>> {
-    Payload {
-        payload: Payload,
-        block_value: Uint256,
-    },
-    PayloadAndBlobs {
-        payload: Payload,
-        block_value: Uint256,
-        kzg_commitments: KzgCommitments<T>,
-        /// `None` for blinded `PayloadAndBlobs`.
-        blobs_and_proofs: Option<(BlobsList<T>, KzgProofs<T>)>,
-    },
+impl<E: EthSpec> BlockProposalContents<E> {
+    pub fn to_payload<Payload: AbstractExecPayload<E>>(self) -> Result<Payload, Error> {
+        match self {
+            Self::Full(inner) => Ok(inner.to_payload().into()),
+            Self::Blinded(inner) => inner
+                .to_payload_header()
+                .try_into()
+                .map_err(|_| Error::InvalidPayloadConversion),
+        }
+    }
+
+    pub fn block_value(&self) -> Uint256 {
+        todo!()
+    }
+
+    pub fn blob_kzg_commitments(&self) -> Result<KzgCommitments<E>, Error> {
+        todo!()
+    }
+
+    pub fn blobs_and_proofs(&self) -> Option<(BlobsList<E>, KzgProofs<E>)> {
+        todo!()
+    }
 }
 
-impl<T: EthSpec> From<BlockProposalContents<T, FullPayload<T>>>
-    for BlockProposalContents<T, BlindedPayload<T>>
-{
-    fn from(item: BlockProposalContents<T, FullPayload<T>>) -> Self {
-        match item {
-            BlockProposalContents::Payload {
-                payload,
-                block_value,
-            } => BlockProposalContents::Payload {
-                payload: payload.execution_payload().into(),
-                block_value,
-            },
-            BlockProposalContents::PayloadAndBlobs {
-                payload,
-                block_value,
-                kzg_commitments,
-                blobs_and_proofs: _,
-            } => BlockProposalContents::PayloadAndBlobs {
-                payload: payload.execution_payload().into(),
-                block_value,
-                kzg_commitments,
-                blobs_and_proofs: None,
-            },
+#[superstruct(
+    variants(Merge, Capella, Deneb),
+    variant_attributes(derive(Clone, Debug, PartialEq),),
+    cast_error(ty = "Error", expr = "Error::InvalidForkForPayload"),
+    partial_getter_error(ty = "Error", expr = "Error::InvalidForkForPayload")
+)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FullBlockProposalContents<T: EthSpec> {
+    #[superstruct(only(Merge), partial_getter(rename = "execution_payload_merge"))]
+    pub payload: ExecutionPayloadMerge<T>,
+    #[superstruct(only(Capella), partial_getter(rename = "execution_payload_capella"))]
+    pub payload: ExecutionPayloadCapella<T>,
+    #[superstruct(only(Deneb), partial_getter(rename = "execution_payload_deneb"))]
+    pub payload: ExecutionPayloadDeneb<T>,
+    pub block_value: Uint256,
+    #[superstruct(only(Deneb))]
+    pub kzg_commitments: KzgCommitments<T>,
+    #[superstruct(only(Deneb))]
+    pub blobs: BlobsList<T>,
+    #[superstruct(only(Deneb))]
+    pub proofs: KzgProofs<T>,
+}
+
+impl<T: EthSpec> FullBlockProposalContents<T> {
+    pub fn default_at_fork(fork_name: ForkName) -> Result<Self, Error> {
+        // match fork_name {
+        //     ForkName::Base | ForkName::Altair => Err(Error::InvalidForkForPayload),
+        //     ForkName::Merge => Self::Merge(ExecutionPayloadMerge::default()),
+        //     ForkName::Capella => Self::Capella(ExecutionPayloadCapella::default()),
+        //     ForkName::Deneb => Self::Deneb(ExecutionPayloadDeneb::default()),
+        // }
+        todo!()
+    }
+    pub fn to_payload(self) -> ExecutionPayload<T> {
+        match self {
+            Self::Merge(inner) => ExecutionPayload::Merge(inner.payload),
+            Self::Capella(inner) => ExecutionPayload::Capella(inner.payload),
+            Self::Deneb(inner) => ExecutionPayload::Deneb(inner.payload),
         }
     }
 }
 
-impl<E: EthSpec, Payload: AbstractExecPayload<E>> TryFrom<GetPayloadResponse<E>>
-    for BlockProposalContents<E, Payload>
-{
+#[superstruct(
+    variants(Merge, Capella, Deneb),
+    variant_attributes(derive(Clone, Debug, PartialEq),),
+    cast_error(ty = "Error", expr = "Error::InvalidForkForPayload"),
+    partial_getter_error(ty = "Error", expr = "Error::InvalidForkForPayload")
+)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlindedBlockProposalContents<T: EthSpec> {
+    #[superstruct(only(Merge), partial_getter(rename = "execution_payload_merge"))]
+    pub payload: ExecutionPayloadHeaderMerge<T>,
+    #[superstruct(only(Capella), partial_getter(rename = "execution_payload_capella"))]
+    pub payload: ExecutionPayloadHeaderCapella<T>,
+    #[superstruct(only(Deneb), partial_getter(rename = "execution_payload_deneb"))]
+    pub payload: ExecutionPayloadHeaderDeneb<T>,
+    pub block_value: Uint256,
+    #[superstruct(only(Deneb))]
+    pub kzg_commitments: KzgCommitments<T>,
+}
+impl<T: EthSpec> BlindedBlockProposalContents<T> {
+    pub fn to_payload_header(self) -> ExecutionPayloadHeader<T> {
+        match self {
+            Self::Merge(inner) => ExecutionPayloadHeader::Merge(inner.payload),
+            Self::Capella(inner) => ExecutionPayloadHeader::Capella(inner.payload),
+            Self::Deneb(inner) => ExecutionPayloadHeader::Deneb(inner.payload),
+        }
+    }
+}
+
+impl<T: EthSpec> From<FullBlockProposalContents<T>> for BlindedBlockProposalContents<T> {
+    fn from(item: FullBlockProposalContents<T>) -> Self {
+        match item {
+            FullBlockProposalContents::Merge(FullBlockProposalContentsMerge {
+                payload,
+                block_value,
+            }) => BlindedBlockProposalContents::Merge(BlindedBlockProposalContentsMerge {
+                payload: (&payload).into(),
+                block_value,
+            }),
+            FullBlockProposalContents::Capella(FullBlockProposalContentsCapella {
+                payload,
+                block_value,
+            }) => BlindedBlockProposalContents::Capella(BlindedBlockProposalContentsCapella {
+                payload: (&payload).into(),
+                block_value,
+            }),
+            FullBlockProposalContents::Deneb(FullBlockProposalContentsDeneb {
+                payload,
+                block_value,
+                kzg_commitments,
+                blobs: _,
+                proofs: _,
+            }) => BlindedBlockProposalContents::Deneb(BlindedBlockProposalContentsDeneb {
+                payload: (&payload).into(),
+                block_value,
+                kzg_commitments,
+            }),
+        }
+    }
+}
+
+impl<E: EthSpec> TryFrom<GetPayloadResponse<E>> for BlockProposalContents<E> {
     type Error = Error;
 
     fn try_from(response: GetPayloadResponse<E>) -> Result<Self, Error> {
-        let (execution_payload, block_value, maybe_bundle) = response.into();
-        match maybe_bundle {
-            Some(bundle) => Ok(Self::PayloadAndBlobs {
-                payload: execution_payload.into(),
-                block_value,
-                kzg_commitments: bundle.commitments,
-                blobs_and_proofs: Some((bundle.blobs, bundle.proofs)),
-            }),
-            None => Ok(Self::Payload {
-                payload: execution_payload.into(),
-                block_value,
-            }),
-        }
+        // let (execution_payload, block_value, maybe_bundle) = response.into();
+        // match maybe_bundle {
+        //     Some(bundle) => Ok(Self::PayloadAndBlobs {
+        //         payload: execution_payload.into(),
+        //         block_value,
+        //         kzg_commitments: bundle.commitments,
+        //         blobs_and_proofs: Some((bundle.blobs, bundle.proofs)),
+        //     }),
+        //     None => Ok(Self::Payload {
+        //         payload: execution_payload.into(),
+        //         block_value,
+        //     }),
+        // }
+        todo!()
     }
 }
 
-impl<E: EthSpec> TryFrom<GetPayloadResponseType<E>> for BlockProposalContentsType<E> {
+impl<E: EthSpec> TryFrom<GetPayloadResponseType<E>> for BlockProposalContents<E> {
     type Error = Error;
 
     fn try_from(response_type: GetPayloadResponseType<E>) -> Result<Self, Error> {
-        match response_type {
-            GetPayloadResponseType::Full(response) => Ok(Self::Full(response.try_into()?)),
-            GetPayloadResponseType::Blinded(response) => Ok(Self::Blinded(response.try_into()?)),
-        }
-    }
-}
-
-#[allow(clippy::type_complexity)]
-impl<T: EthSpec, Payload: AbstractExecPayload<T>> BlockProposalContents<T, Payload> {
-    pub fn deconstruct(
-        self,
-    ) -> (
-        Payload,
-        Option<KzgCommitments<T>>,
-        Option<(BlobsList<T>, KzgProofs<T>)>,
-        Uint256,
-    ) {
-        match self {
-            Self::Payload {
-                payload,
-                block_value,
-            } => (payload, None, None, block_value),
-            Self::PayloadAndBlobs {
-                payload,
-                block_value,
-                kzg_commitments,
-                blobs_and_proofs,
-            } => (
-                payload,
-                Some(kzg_commitments),
-                blobs_and_proofs,
-                block_value,
-            ),
-        }
-    }
-
-    pub fn payload(&self) -> &Payload {
-        match self {
-            Self::Payload { payload, .. } => payload,
-            Self::PayloadAndBlobs { payload, .. } => payload,
-        }
-    }
-    pub fn to_payload(self) -> Payload {
-        match self {
-            Self::Payload { payload, .. } => payload,
-            Self::PayloadAndBlobs { payload, .. } => payload,
-        }
-    }
-    pub fn block_value(&self) -> &Uint256 {
-        match self {
-            Self::Payload { block_value, .. } => block_value,
-            Self::PayloadAndBlobs { block_value, .. } => block_value,
-        }
+        todo!()
     }
 }
 
@@ -835,7 +899,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
         current_fork: ForkName,
         spec: &ChainSpec,
         block_production_version: BlockProductionVersion,
-    ) -> Result<BlockProposalContentsType<T>, Error> {
+    ) -> Result<BlockProposalContents<T>, Error> {
         let payload_result_type = match block_production_version {
             BlockProductionVersion::V3 => match self
                 .determine_and_fetch_payload(
@@ -891,7 +955,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
         };
 
         match block_proposal_content_type {
-            BlockProposalContentsType::Full(block_proposal_contents) => {
+            BlockProposalContents::Full(block_proposal_contents) => {
                 metrics::inc_counter_vec(
                     &metrics::EXECUTION_LAYER_GET_PAYLOAD_OUTCOME,
                     &[metrics::SUCCESS],
@@ -901,14 +965,14 @@ impl<T: EthSpec> ExecutionLayer<T> {
                     &[metrics::LOCAL],
                 );
                 if matches!(block_production_version, BlockProductionVersion::BlindedV2) {
-                    Ok(BlockProposalContentsType::Blinded(
+                    Ok(BlockProposalContents::Blinded(
                         block_proposal_contents.into(),
                     ))
                 } else {
-                    Ok(BlockProposalContentsType::Full(block_proposal_contents))
+                    Ok(BlockProposalContents::Full(block_proposal_contents))
                 }
             }
-            BlockProposalContentsType::Blinded(block_proposal_contents) => {
+            BlockProposalContents::Blinded(block_proposal_contents) => {
                 metrics::inc_counter_vec(
                     &metrics::EXECUTION_LAYER_GET_PAYLOAD_OUTCOME,
                     &[metrics::SUCCESS],
@@ -917,7 +981,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
                     &metrics::EXECUTION_LAYER_GET_PAYLOAD_SOURCE,
                     &[metrics::BUILDER],
                 );
-                Ok(BlockProposalContentsType::Blinded(block_proposal_contents))
+                Ok(BlockProposalContents::Blinded(block_proposal_contents))
             }
         }
     }
@@ -996,7 +1060,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
         builder_params: BuilderParams,
         current_fork: ForkName,
         spec: &ChainSpec,
-    ) -> Result<ProvenancedPayload<BlockProposalContentsType<T>>, Error> {
+    ) -> Result<ProvenancedPayload<BlockProposalContents<T>>, Error> {
         let Some(builder) = self.builder() else {
             // no builder.. return local payload
             return self
@@ -1068,9 +1132,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
                     "local_block_hash" => ?local.block_hash(),
                     "parent_hash" => ?parent_hash,
                 );
-                Ok(ProvenancedPayload::Local(BlockProposalContentsType::Full(
-                    local.try_into()?,
-                )))
+                Ok(local.into())
             }
             (Ok(None), Ok(local)) => {
                 info!(
@@ -1080,9 +1142,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
                     "local_block_hash" => ?local.block_hash(),
                     "parent_hash" => ?parent_hash,
                 );
-                Ok(ProvenancedPayload::Local(BlockProposalContentsType::Full(
-                    local.try_into()?,
-                )))
+                Ok(local.into())
             }
             (Err(relay_error), Err(local_error)) => {
                 crit!(
@@ -1141,13 +1201,11 @@ impl<T: EthSpec> ExecutionLayer<T> {
                         "relay_block_hash" => ?header.block_hash(),
                         "parent_hash" => ?parent_hash,
                     );
-                    return Ok(ProvenancedPayload::Local(BlockProposalContentsType::Full(
-                        local.try_into()?,
-                    )));
+                    return Ok(local.into());
                 }
 
                 if self.inner.always_prefer_builder_payload {
-                    return ProvenancedPayload::try_from(relay.data.message);
+                    return Ok(relay.data.message.into());
                 }
 
                 let relay_value = *relay.data.message.value();
@@ -1160,9 +1218,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
                         "local_block_value" => %local_value,
                         "relay_value" => %relay_value
                     );
-                    return Ok(ProvenancedPayload::Local(BlockProposalContentsType::Full(
-                        local.try_into()?,
-                    )));
+                    return Ok(local.into());
                 }
 
                 if relay_value < self.inner.builder_profit_threshold {
@@ -1174,9 +1230,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
                         "relay_block_hash" => ?header.block_hash(),
                         "parent_hash" => ?parent_hash,
                     );
-                    return Ok(ProvenancedPayload::Local(BlockProposalContentsType::Full(
-                        local.try_into()?,
-                    )));
+                    return Ok(local.into());
                 }
 
                 if local.should_override_builder().unwrap_or(false) {
@@ -1191,9 +1245,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
                             "local_block_value" => %local_value,
                             "relay_value" => %relay_value
                         );
-                        return Ok(ProvenancedPayload::Local(BlockProposalContentsType::Full(
-                            local.try_into()?,
-                        )));
+                        return Ok(local.into());
                     }
                 }
 
@@ -1204,7 +1256,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
                     "relay_value" => %relay_value
                 );
 
-                Ok(ProvenancedPayload::try_from(relay.data.message)?)
+                Ok(relay.data.message.into())
             }
             (Ok(Some(relay)), Err(local_error)) => {
                 let header = &relay.data.message.header();
@@ -1225,7 +1277,7 @@ impl<T: EthSpec> ExecutionLayer<T> {
                     current_fork,
                     spec,
                 ) {
-                    Ok(()) => Ok(ProvenancedPayload::try_from(relay.data.message)?),
+                    Ok(()) => Ok(relay.data.message.into()),
                     Err(reason) => {
                         metrics::inc_counter_vec(
                             &metrics::EXECUTION_LAYER_GET_PAYLOAD_BUILDER_REJECTIONS,

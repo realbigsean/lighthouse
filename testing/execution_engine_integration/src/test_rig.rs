@@ -4,7 +4,7 @@ use crate::execution_engine::{
 use crate::transactions::transactions;
 use ethers_providers::Middleware;
 use execution_layer::{
-    BlockProposalContentsType, BuilderParams, ChainHealth, ExecutionLayer, PayloadAttributes,
+    BlockProposalContents, BuilderParams, ChainHealth, ExecutionLayer, PayloadAttributes,
     PayloadStatus,
 };
 use fork_choice::ForkchoiceUpdateParameters;
@@ -340,8 +340,8 @@ impl<E: GenericExecutionEngine> TestRig<E> {
             .unwrap();
 
         let valid_payload = match block_proposal_content_type {
-            BlockProposalContentsType::Full(block) => block.to_payload().execution_payload(),
-            BlockProposalContentsType::Blinded(_) => panic!("Should always be a full payload"),
+            BlockProposalContents::Full(block) => block.to_payload(),
+            BlockProposalContents::Blinded(_) => panic!("Should always be a full payload"),
         };
 
         assert_eq!(valid_payload.transactions().len(), pending_txs.len());
@@ -491,8 +491,8 @@ impl<E: GenericExecutionEngine> TestRig<E> {
             .unwrap();
 
         let second_payload = match block_proposal_content_type {
-            BlockProposalContentsType::Full(block) => block.to_payload().execution_payload(),
-            BlockProposalContentsType::Blinded(_) => panic!("Should always be a full payload"),
+            BlockProposalContents::Full(block) => block.to_payload(),
+            BlockProposalContents::Blinded(_) => panic!("Should always be a full payload"),
         };
 
         /*

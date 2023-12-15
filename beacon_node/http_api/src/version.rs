@@ -73,12 +73,12 @@ pub fn add_execution_payload_blinded_header<T: Reply>(
 /// Add the `Eth-Execution-Payload-Value` header to a response.
 pub fn add_execution_payload_value_header<T: Reply>(
     reply: T,
-    execution_payload_value: Option<Uint256>,
+    execution_payload_value: Uint256,
 ) -> Response {
     reply::with_header(
         reply,
         EXECUTION_PAYLOAD_VALUE_HEADER,
-        execution_payload_value.unwrap_or_default().to_string(),
+        execution_payload_value.to_string(),
     )
     .into_response()
 }

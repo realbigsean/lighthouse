@@ -1431,7 +1431,7 @@ pub mod serde_status_code {
 }
 
 pub enum ForkVersionedBeaconBlockType<T: EthSpec> {
-    Full(ForkVersionedResponse<FullBlockContents<T>>),
+    Full(ForkVersionedResponse<BlockContents<T>>),
     Blinded(ForkVersionedResponse<BlindedBeaconBlock<T>>),
 }
 
@@ -1517,130 +1517,21 @@ mod tests {
 #[serde(bound = "E: EthSpec")]
 #[ssz(enum_behaviour = "transparent")]
 pub enum ProduceBlockV3Response<E: EthSpec> {
-    Full(FullBlockContents<E>),
+    Full(BlockContents<E>),
     Blinded(BlindedBeaconBlock<E>),
 }
 
-/// A wrapper over a [`BeaconBlock`] or a [`BlockContents`].
-#[derive(Debug, Encode, Serialize, Deserialize)]
-#[serde(untagged)]
-#[serde(bound = "T: EthSpec")]
-#[ssz(enum_behaviour = "transparent")]
-pub enum FullBlockContents<T: EthSpec> {
-    /// This is a full deneb variant with block and blobs.
-    BlockContents(BlockContents<T>),
-    /// This variant is for all pre-deneb full blocks.
-    Block(BeaconBlock<T>),
+impl<E: EthSpec> ProduceBlockV3Response<E> {
+    pub fn block(&self) -> &BeaconBlock<E> {
+        // match self {
+        //     ProduceBlockV3Response::Full(block) => &block.block,
+        //     ProduceBlockV3Response::Blinded(block) => &block,
+        // }
+        todo!()
+    }
 }
 
 pub type BlockContentsTuple<T> = (BeaconBlock<T>, Option<(KzgProofs<T>, BlobsList<T>)>);
-
-impl<T: EthSpec> FullBlockContents<T> {
-    pub fn new(block: BeaconBlock<T>, blob_data: Option<(KzgProofs<T>, BlobsList<T>)>) -> Self {
-        match blob_data {
-            Some((kzg_proofs, blobs)) => Self::BlockContents(BlockContents {
-                block,
-                kzg_proofs,
-                blobs,
-            }),
-            None => Self::Block(block),
-        }
-    }
-
-    /// SSZ decode with fork variant determined by slot.
-    pub fn from_ssz_bytes(bytes: &[u8], spec: &ChainSpec) -> Result<Self, ssz::DecodeError> {
-        let slot_len = <Slot as Decode>::ssz_fixed_len();
-        let slot_bytes = bytes
-            .get(0..slot_len)
-            .ok_or(DecodeError::InvalidByteLength {
-                len: bytes.len(),
-                expected: slot_len,
-            })?;
-
-        let slot = Slot::from_ssz_bytes(slot_bytes)?;
-        let fork_at_slot = spec.fork_name_at_slot::<T>(slot);
-
-        match fork_at_slot {
-            ForkName::Base | ForkName::Altair | ForkName::Merge | ForkName::Capella => {
-                BeaconBlock::from_ssz_bytes(bytes, spec)
-                    .map(|block| FullBlockContents::Block(block))
-            }
-            ForkName::Deneb => {
-                let mut builder = ssz::SszDecoderBuilder::new(bytes);
-
-                builder.register_anonymous_variable_length_item()?;
-                builder.register_type::<KzgProofs<T>>()?;
-                builder.register_type::<BlobsList<T>>()?;
-
-                let mut decoder = builder.build()?;
-                let block =
-                    decoder.decode_next_with(|bytes| BeaconBlock::from_ssz_bytes(bytes, spec))?;
-                let kzg_proofs = decoder.decode_next()?;
-                let blobs = decoder.decode_next()?;
-
-                Ok(FullBlockContents::new(block, Some((kzg_proofs, blobs))))
-            }
-        }
-    }
-
-    pub fn block(&self) -> &BeaconBlock<T> {
-        match self {
-            FullBlockContents::BlockContents(block_and_sidecars) => &block_and_sidecars.block,
-            FullBlockContents::Block(block) => block,
-        }
-    }
-
-    pub fn deconstruct(self) -> BlockContentsTuple<T> {
-        match self {
-            FullBlockContents::BlockContents(block_and_sidecars) => (
-                block_and_sidecars.block,
-                Some((block_and_sidecars.kzg_proofs, block_and_sidecars.blobs)),
-            ),
-            FullBlockContents::Block(block) => (block, None),
-        }
-    }
-
-    /// Signs `self`, producing a `SignedBlockContents`.
-    pub fn sign(
-        self,
-        secret_key: &SecretKey,
-        fork: &Fork,
-        genesis_validators_root: Hash256,
-        spec: &ChainSpec,
-    ) -> PublishBlockRequest<T> {
-        let (block, maybe_blobs) = self.deconstruct();
-        let signed_block = block.sign(secret_key, fork, genesis_validators_root, spec);
-        PublishBlockRequest::new(signed_block, maybe_blobs)
-    }
-}
-
-impl<T: EthSpec> ForkVersionDeserialize for FullBlockContents<T> {
-    fn deserialize_by_fork<'de, D: serde::Deserializer<'de>>(
-        value: serde_json::value::Value,
-        fork_name: ForkName,
-    ) -> Result<Self, D::Error> {
-        match fork_name {
-            ForkName::Base | ForkName::Altair | ForkName::Merge | ForkName::Capella => {
-                Ok(FullBlockContents::Block(
-                    BeaconBlock::deserialize_by_fork::<'de, D>(value, fork_name)?,
-                ))
-            }
-            ForkName::Deneb => Ok(FullBlockContents::BlockContents(
-                BlockContents::deserialize_by_fork::<'de, D>(value, fork_name)?,
-            )),
-        }
-    }
-}
-
-impl<T: EthSpec> Into<BeaconBlock<T>> for FullBlockContents<T> {
-    fn into(self) -> BeaconBlock<T> {
-        match self {
-            Self::BlockContents(block_and_sidecars) => block_and_sidecars.block,
-            Self::Block(block) => block,
-        }
-    }
-}
-
 pub type SignedBlockContentsTuple<T> = (SignedBeaconBlock<T>, Option<(KzgProofs<T>, BlobsList<T>)>);
 
 /// A wrapper over a [`SignedBeaconBlock`] or a [`SignedBlockContents`].
@@ -1658,14 +1549,15 @@ impl<T: EthSpec> PublishBlockRequest<T> {
         block: SignedBeaconBlock<T>,
         blob_items: Option<(KzgProofs<T>, BlobsList<T>)>,
     ) -> Self {
-        match blob_items {
-            Some((kzg_proofs, blobs)) => Self::BlockContents(SignedBlockContents {
-                signed_block: block,
-                kzg_proofs,
-                blobs,
-            }),
-            None => Self::Block(block),
-        }
+        // match blob_items {
+        //     Some((kzg_proofs, blobs)) => Self::BlockContents(SignedBlockContents {
+        //         signed_block: block,
+        //         kzg_proofs,
+        //         blobs,
+        //     }),
+        //     None => Self::Block(block),
+        // }
+        todo!()
     }
 
     /// SSZ decode with fork variant determined by slot.
@@ -1703,22 +1595,24 @@ impl<T: EthSpec> PublishBlockRequest<T> {
     }
 
     pub fn signed_block(&self) -> &SignedBeaconBlock<T> {
-        match self {
-            PublishBlockRequest::BlockContents(block_and_sidecars) => {
-                &block_and_sidecars.signed_block
-            }
-            PublishBlockRequest::Block(block) => block,
-        }
+        // match self {
+        //     PublishBlockRequest::BlockContents(block_and_sidecars) => {
+        //         &block_and_sidecars.signed_block
+        //     }
+        //     PublishBlockRequest::Block(block) => block,
+        // }
+        todo!()
     }
 
     pub fn deconstruct(self) -> SignedBlockContentsTuple<T> {
-        match self {
-            PublishBlockRequest::BlockContents(block_and_sidecars) => (
-                block_and_sidecars.signed_block,
-                Some((block_and_sidecars.kzg_proofs, block_and_sidecars.blobs)),
-            ),
-            PublishBlockRequest::Block(block) => (block, None),
-        }
+        // match self {
+        //     PublishBlockRequest::BlockContents(block_and_sidecars) => (
+        //         block_and_sidecars.signed_block,
+        //         Some((block_and_sidecars.kzg_proofs, block_and_sidecars.blobs)),
+        //     ),
+        //     PublishBlockRequest::Block(block) => (block, None),
+        // }
+        todo!()
     }
 }
 
@@ -1779,22 +1673,84 @@ impl<T: EthSpec> From<SignedBlockContentsTuple<T>> for PublishBlockRequest<T> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Encode)]
+#[superstruct(
+    variants(Merge, Capella, Deneb),
+    variant_attributes(
+        derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode),
+        serde(bound = "T: EthSpec"),
+    ),
+    cast_error(
+        ty = "BeaconStateError",
+        expr = "BeaconStateError::IncorrectStateVariant"
+    ),
+    partial_getter_error(
+        ty = "BeaconStateError",
+        expr = "BeaconStateError::IncorrectStateVariant"
+    )
+)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode)]
+#[serde(untagged)]
 #[serde(bound = "T: EthSpec")]
+#[ssz(enum_behaviour = "transparent")]
 pub struct SignedBlockContents<T: EthSpec> {
-    pub signed_block: SignedBeaconBlock<T>,
+    #[superstruct(only(Merge), partial_getter(rename = "signed_block_merge"))]
+    signed_block: SignedBeaconBlockMerge<T>,
+    #[superstruct(only(Capella), partial_getter(rename = "signed_block_capella"))]
+    signed_block: SignedBeaconBlockCapella<T>,
+    #[superstruct(only(Deneb), partial_getter(rename = "signed_block_deneb"))]
+    signed_block: SignedBeaconBlockDeneb<T>,
+    #[superstruct(only(Deneb))]
+    kzg_proofs: KzgProofs<T>,
+    #[superstruct(only(Deneb))]
+    #[serde(with = "ssz_types::serde_utils::list_of_hex_fixed_vec")]
+    blobs: BlobsList<T>,
+}
+
+#[superstruct(
+    variants(Base, Altair, Merge, Capella, Deneb),
+    variant_attributes(
+        derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode),
+        serde(bound = "T: EthSpec"),
+    ),
+    cast_error(
+        ty = "BeaconStateError",
+        expr = "BeaconStateError::IncorrectStateVariant"
+    ),
+    partial_getter_error(
+        ty = "BeaconStateError",
+        expr = "BeaconStateError::IncorrectStateVariant"
+    )
+)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode)]
+#[serde(untagged)]
+#[serde(bound = "T: EthSpec")]
+#[ssz(enum_behaviour = "transparent")]
+pub struct BlockContents<T: EthSpec> {
+    #[superstruct(only(Base), partial_getter(rename = "block_base"))]
+    #[serde(flatten)]
+    pub block: BeaconBlockBase<T>,
+    #[superstruct(only(Altair), partial_getter(rename = "block_altair"))]
+    #[serde(flatten)]
+    pub block: BeaconBlockAltair<T>,
+    #[superstruct(only(Merge), partial_getter(rename = "block_merge"))]
+    #[serde(flatten)]
+    pub block: BeaconBlockMerge<T>,
+    #[superstruct(only(Capella), partial_getter(rename = "block_capella"))]
+    #[serde(flatten)]
+    pub block: BeaconBlockCapella<T>,
+    #[superstruct(only(Deneb), partial_getter(rename = "block_deneb"))]
+    pub block: BeaconBlockDeneb<T>,
+    #[superstruct(only(Deneb))]
     pub kzg_proofs: KzgProofs<T>,
+    #[superstruct(only(Deneb))]
     #[serde(with = "ssz_types::serde_utils::list_of_hex_fixed_vec")]
     pub blobs: BlobsList<T>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Encode)]
-#[serde(bound = "T: EthSpec")]
-pub struct BlockContents<T: EthSpec> {
-    pub block: BeaconBlock<T>,
-    pub kzg_proofs: KzgProofs<T>,
-    #[serde(with = "ssz_types::serde_utils::list_of_hex_fixed_vec")]
-    pub blobs: BlobsList<T>,
+impl<T: EthSpec> BlockContents<T> {
+    pub fn block(&self) -> BeaconBlock<T> {
+        todo!()
+    }
 }
 
 impl<T: EthSpec> ForkVersionDeserialize for BlockContents<T> {
@@ -1812,11 +1768,12 @@ impl<T: EthSpec> ForkVersionDeserialize for BlockContents<T> {
         }
         let helper: Helper<T> = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
 
-        Ok(Self {
-            block: BeaconBlock::deserialize_by_fork::<'de, D>(helper.block, fork_name)?,
-            kzg_proofs: helper.kzg_proofs,
-            blobs: helper.blobs,
-        })
+        // Ok(Self {
+        //     block: BeaconBlock::deserialize_by_fork::<'de, D>(helper.block, fork_name)?,
+        //     kzg_proofs: helper.kzg_proofs,
+        //     blobs: helper.blobs,
+        // })
+        todo!()
     }
 }
 
