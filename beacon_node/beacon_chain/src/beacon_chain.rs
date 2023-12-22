@@ -327,8 +327,28 @@ pub trait BeaconChainTypes: Send + Sync + 'static {
     type EthSpec: types::EthSpec;
 }
 
+#[superstruct(
+    variants(Base, Altair, Merge, Capella, Deneb),
+    cast_error(
+        ty = "BeaconStateError",
+        expr = "BeaconStateError::IncorrectStateVariant"
+    ),
+    partial_getter_error(
+        ty = "BeaconStateError",
+        expr = "BeaconStateError::IncorrectStateVariant"
+    )
+)]
 struct PartialBeaconBlock<E: EthSpec> {
-    state: BeaconState<E>,
+    #[superstruct(only(Base), partial_getter(rename = "state_base"))]
+    state: BeaconStateBase<E>,
+    #[superstruct(only(Altair), partial_getter(rename = "state_altair"))]
+    state: BeaconStateAltair<E>,
+    #[superstruct(only(Merge), partial_getter(rename = "state_merge"))]
+    state: BeaconStateMerge<E>,
+    #[superstruct(only(Capella), partial_getter(rename = "state_capella"))]
+    state: BeaconStateCapella<E>,
+    #[superstruct(only(Deneb), partial_getter(rename = "state_deneb"))]
+    state: BeaconStateDeneb<E>,
     slot: Slot,
     proposer_index: u64,
     parent_root: Hash256,
@@ -340,8 +360,11 @@ struct PartialBeaconBlock<E: EthSpec> {
     attestations: Vec<Attestation<E>>,
     deposits: Vec<Deposit>,
     voluntary_exits: Vec<SignedVoluntaryExit>,
-    sync_aggregate: Option<SyncAggregate<E>>,
-    prepare_payload_handle: Option<PreparePayloadHandle<E>>,
+    #[superstruct(only(Altair, Merge, Capella, Deneb))]
+    sync_aggregate: SyncAggregate<E>,
+    #[superstruct(only(Merge, Capella, Deneb))]
+    prepare_payload_handle: PreparePayloadHandle<E>,
+    #[superstruct(only(Capella, Deneb))]
     bls_to_execution_changes: Vec<SignedBlsToExecutionChange>,
 }
 
