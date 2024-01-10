@@ -29,7 +29,7 @@ pub use execution_block_generator::{
     ExecutionBlockGenerator,
 };
 pub use hook::Hook;
-pub use mock_builder::{self, MockBuilder, Operation};
+pub use mock_builder::{MockBuilder, Operation};
 pub use mock_execution_layer::MockExecutionLayer;
 
 pub const DEFAULT_TERMINAL_DIFFICULTY: u64 = 6400;
@@ -54,7 +54,7 @@ pub const DEFAULT_ENGINE_CAPABILITIES: EngineCapabilities = EngineCapabilities {
 mod execution_block_generator;
 mod handle_rpc;
 mod hook;
-mod mock_builder;
+pub mod mock_builder;
 mod mock_execution_layer;
 
 /// Configuration for the MockExecutionLayer.
