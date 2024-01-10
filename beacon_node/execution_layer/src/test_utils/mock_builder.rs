@@ -273,6 +273,10 @@ impl<E: EthSpec> MockBuilder<E> {
             op.apply(bid);
         }
     }
+
+    pub fn pubkey(&self) -> PublicKeyBytes {
+        self.builder_sk.public_key().compress()
+    }
 }
 
 pub fn serve<E: EthSpec>(
