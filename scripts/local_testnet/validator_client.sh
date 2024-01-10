@@ -17,7 +17,7 @@ BUILDER_PROPOSALS=
 # Get options
 while getopts "pd:" flag; do
   case "${flag}" in
-    p) BUILDER_PROPOSALS="--builder-proposals";;
+    p) BUILDER_PROPOSALS="--builder-proposals --produce-block-v3";;
     d) DEBUG_LEVEL=${OPTARG};;
   esac
 done
