@@ -505,6 +505,8 @@ impl<T: EthSpec> ExecutionLayer<T> {
                 blobs: blobs_bundle.blobs,
             });
 
+        info!(self.inner.log, "Caching payload"; "root" => ?payload.tree_hash_root());
+
         self.inner
             .payload_cache
             .put(FullPayloadContents::new(payload, maybe_blobs_bundle))

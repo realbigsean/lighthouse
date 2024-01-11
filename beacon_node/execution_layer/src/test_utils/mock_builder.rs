@@ -5,6 +5,7 @@ use eth2::{BeaconNodeHttpClient, Timeouts};
 use fork_choice::ForkchoiceUpdateParameters;
 use parking_lot::RwLock;
 use sensitive_url::SensitiveUrl;
+use slog::info;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
@@ -606,7 +607,11 @@ pub fn serve<E: EthSpec>(
                     }
                 };
 
-                message.set_gas_limit(cached_data.gas_limit);
+                info!(
+                    builder.el.inner.log,
+                    "message header root {:?}",
+                    message.header().tree_hash_root()
+                );
 
                 builder.apply_operations(&mut message);
 
