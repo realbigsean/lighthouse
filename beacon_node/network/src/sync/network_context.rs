@@ -414,6 +414,13 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     ) -> Option<BlocksAndBlobsByRangeResponse<T::EthSpec>> {
         match self.backfill_blocks_and_blobs_requests.entry(request_id) {
             Entry::Occupied(mut entry) => {
+                let ty = if matches!(block_or_blob, BlockOrBlob::Block(_)) {
+                    "Blocks"
+                } else {
+                    "Blobs"
+                };
+                debug!(self.log, "backfill response"; "request_id" => request_id, "batch_id" => ?entry.get().0, "type" => ty);
+
                 let (_, info) = entry.get_mut();
                 match block_or_blob {
                     BlockOrBlob::Block(maybe_block) => info.add_block_response(maybe_block),
