@@ -431,6 +431,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     .iter()
                     .map(|wrapped| wrapped.n_blobs())
                     .sum::<usize>();
+                debug!(self.log, "Starting batch processing";
+                            "batch_epoch" => epoch,
+                            "first_block_slot" => start_slot,
+                            "last_block_slot" => end_slot,
+                            "processed_blocks" => sent_blocks,
+                            "processed_blobs" => n_blobs,
+                            "service"=> "sync");
 
                 match self.process_backfill_blocks(downloaded_blocks) {
                     (_, Ok(_)) => {
@@ -538,6 +545,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         downloaded_blocks: Vec<RpcBlock<T::EthSpec>>,
     ) -> (usize, Result<(), ChainSegmentFailed>) {
         let total_blocks = downloaded_blocks.len();
+
+        debug!(
+            self.log,
+            "Checking block availability";
+            "blocks" => total_blocks
+        );
         let available_blocks = match self
             .chain
             .data_availability_checker
@@ -572,6 +585,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 }
             },
         };
+        debug!(
+            self.log,
+            "Complete block availability check";
+            "blocks" => total_blocks,
+            "available_blocks" => available_blocks.len()
+        );
 
         if available_blocks.len() != total_blocks {
             return (
@@ -589,6 +608,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         match self.chain.import_historical_block_batch(available_blocks) {
             Ok(imported_blocks) => {
+                debug!(
+                    self.log,
+                    "imported historical block";
+                    "blocks" => total_blocks,
+                );
                 metrics::inc_counter(
                     &metrics::BEACON_PROCESSOR_BACKFILL_CHAIN_SEGMENT_SUCCESS_TOTAL,
                 );
