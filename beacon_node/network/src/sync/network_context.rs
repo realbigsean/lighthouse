@@ -160,6 +160,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                     "method" => "BlocksByRange",
                     "count" => request.count(),
                     "peer" => %peer_id,
+                    "batch_ide" => batch_id,
                 );
                 let request = Request::BlocksByRange(request);
                 let id = self.next_id();
@@ -179,6 +180,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                     "method" => "Mixed by range request",
                     "count" => request.count(),
                     "peer" => %peer_id,
+                    "batch_ide" => batch_id,
                 );
 
                 // create the shared request id. This is fine since the rpc handles substream ids.
@@ -233,6 +235,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                     "method" => "BlocksByRange",
                     "count" => request.count(),
                     "peer" => %peer_id,
+                    "batch_ide" => batch_id,
                 );
                 let request = Request::BlocksByRange(request);
                 let id = self.next_id();
@@ -252,6 +255,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                     "method" => "Mixed by range request",
                     "count" => request.count(),
                     "peer" => %peer_id,
+                    "batch_id" => batch_id,
                 );
 
                 // create the shared request id. This is fine since the rpc handles substream ids.
