@@ -57,7 +57,7 @@ pub use publish_blocks::{
 use serde::{Deserialize, Serialize};
 use slog::{crit, debug, error, info, warn, Logger};
 use slot_clock::SlotClock;
-use ssz::Encode;
+use ssz::{Decode, Encode};
 pub use state_id::StateId;
 use std::borrow::Cow;
 use std::future::Future;
@@ -1333,6 +1333,7 @@ pub fn serve<T: BeaconChainTypes>(
                   network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
                   log: Logger| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
+                    info!(log, "Expected bytes"; "ssz_bytes" => ?block_contents.as_ssz_bytes());
                     publish_blocks::publish_block(
                         None,
                         ProvenancedBlock::local(block_contents),
@@ -1364,9 +1365,13 @@ pub fn serve<T: BeaconChainTypes>(
                   chain: Arc<BeaconChain<T>>,
                   network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
                   log: Logger| {
-                info!(log, "Received SSZ block");
-
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
+                    let slot_len = <Slot as Decode>::ssz_fixed_len();
+                    let slot_bytes = block_bytes.get(0..slot_len).unwrap();
+                    let slot = Slot::from_ssz_bytes(slot_bytes).unwrap();
+                    let fork_at_slot = chain.spec.fork_name_at_slot::<T::EthSpec>(slot);
+                    info!(log, "Received SSZ block"; "slot" => slot, "fork" => ?fork_at_slot, "ssz_bytes" => ?block_bytes);
+
                     let block_contents = PublishBlockRequest::<T::EthSpec>::from_ssz_bytes(
                         &block_bytes,
                         &chain.spec,
