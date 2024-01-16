@@ -1333,7 +1333,6 @@ pub fn serve<T: BeaconChainTypes>(
                   network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
                   log: Logger| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
-                    info!(log, "Expected bytes"; "ssz_bytes" => ?block_contents.as_ssz_bytes());
                     publish_blocks::publish_block(
                         None,
                         ProvenancedBlock::local(block_contents),
@@ -1370,7 +1369,7 @@ pub fn serve<T: BeaconChainTypes>(
                     let slot_bytes = block_bytes.get(0..slot_len).unwrap();
                     let slot = Slot::from_ssz_bytes(slot_bytes).unwrap();
                     let fork_at_slot = chain.spec.fork_name_at_slot::<T::EthSpec>(slot);
-                    info!(log, "Received SSZ block"; "slot" => slot, "fork" => ?fork_at_slot, "ssz_bytes" => ?block_bytes);
+                    info!(log, "Received SSZ block"; "slot" => slot, "fork" => ?fork_at_slot);
 
                     let block_contents = PublishBlockRequest::<T::EthSpec>::from_ssz_bytes(
                         &block_bytes,

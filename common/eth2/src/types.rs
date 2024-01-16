@@ -10,7 +10,7 @@ use mediatype::{names, MediaType, MediaTypeList};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use ssz::{Decode, DecodeError};
+use ssz::{Decode, DecodeError, BYTES_PER_LENGTH_OFFSET};
 use ssz_derive::{Decode, Encode};
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
@@ -1750,7 +1750,7 @@ impl<T: EthSpec> PublishBlockRequest<T> {
     pub fn from_ssz_bytes(bytes: &[u8], spec: &ChainSpec) -> Result<Self, ssz::DecodeError> {
         let slot_len = <Slot as Decode>::ssz_fixed_len();
         let slot_bytes = bytes
-            .get(0..slot_len)
+            .get(BYTES_PER_LENGTH_OFFSET..slot_len + BYTES_PER_LENGTH_OFFSET)
             .ok_or(DecodeError::InvalidByteLength {
                 len: bytes.len(),
                 expected: slot_len,
