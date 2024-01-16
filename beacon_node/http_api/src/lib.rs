@@ -1364,6 +1364,8 @@ pub fn serve<T: BeaconChainTypes>(
                   chain: Arc<BeaconChain<T>>,
                   network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
                   log: Logger| {
+                info!(log, "Received SSZ block");
+
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
                     let block_contents = PublishBlockRequest::<T::EthSpec>::from_ssz_bytes(
                         &block_bytes,
@@ -1372,6 +1374,7 @@ pub fn serve<T: BeaconChainTypes>(
                     .map_err(|e| {
                         warp_utils::reject::custom_bad_request(format!("invalid SSZ: {e:?}"))
                     })?;
+                    info!(log, "Deserialized SSZ block");
                     publish_blocks::publish_block(
                         None,
                         ProvenancedBlock::local(block_contents),
@@ -4652,8 +4655,10 @@ pub fn serve<T: BeaconChainTypes>(
                         post_beacon_blocks_ssz
                             .uor(post_beacon_blocks_v2_ssz)
                             .uor(post_beacon_blinded_blocks_ssz)
-                            .uor(post_beacon_blinded_blocks_v2_ssz),
+                            .uor(post_beacon_blinded_blocks_v2_ssz)
+                            .boxed(),
                     )
+                    .boxed()
                     .uor(post_beacon_blocks)
                     .uor(post_beacon_blinded_blocks)
                     .uor(post_beacon_blocks_v2)
@@ -4685,6 +4690,7 @@ pub fn serve<T: BeaconChainTypes>(
                     .recover(warp_utils::reject::handle_rejection),
             ),
         )
+        .boxed()
         .recover(warp_utils::reject::handle_rejection)
         .with(slog_logging(log.clone()))
         .with(prometheus_metrics())
