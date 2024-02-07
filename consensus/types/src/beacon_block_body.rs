@@ -23,6 +23,7 @@ pub const BLOB_KZG_COMMITMENTS_INDEX: usize = 11;
 ///
 /// This *superstruct* abstracts over the hard-fork.
 #[superstruct(
+    meta_variants(Blinded, Full),
     variants(Base, Altair, Merge, Capella, Deneb),
     variant_attributes(
         derive(
@@ -37,12 +38,9 @@ pub const BLOB_KZG_COMMITMENTS_INDEX: usize = 11;
             Derivative,
             arbitrary::Arbitrary
         ),
-        derivative(PartialEq, Hash(bound = "T: EthSpec, Payload: AbstractExecPayload<T>")),
-        serde(
-            bound = "T: EthSpec, Payload: AbstractExecPayload<T>",
-            deny_unknown_fields
-        ),
-        arbitrary(bound = "T: EthSpec, Payload: AbstractExecPayload<T>"),
+        derivative(PartialEq, Hash(bound = "T: EthSpec")),
+        serde(bound = "T: EthSpec", deny_unknown_fields),
+        arbitrary(bound = "T: EthSpec"),
     ),
     cast_error(ty = "Error", expr = "Error::IncorrectStateVariant"),
     partial_getter_error(ty = "Error", expr = "Error::IncorrectStateVariant")
@@ -50,9 +48,9 @@ pub const BLOB_KZG_COMMITMENTS_INDEX: usize = 11;
 #[derive(Debug, Clone, Serialize, Deserialize, Derivative, arbitrary::Arbitrary)]
 #[derivative(PartialEq, Hash(bound = "T: EthSpec"))]
 #[serde(untagged)]
-#[serde(bound = "T: EthSpec, Payload: AbstractExecPayload<T>")]
-#[arbitrary(bound = "T: EthSpec, Payload: AbstractExecPayload<T>")]
-pub struct BeaconBlockBody<T: EthSpec, Payload: AbstractExecPayload<T> = FullPayload<T>> {
+#[serde(bound = "T: EthSpec")]
+#[arbitrary(bound = "T: EthSpec")]
+pub struct BeaconBlockBody<T: EthSpec> {
     pub randao_reveal: Signature,
     pub eth1_data: Eth1Data,
     pub graffiti: Graffiti,
@@ -63,44 +61,61 @@ pub struct BeaconBlockBody<T: EthSpec, Payload: AbstractExecPayload<T> = FullPay
     pub voluntary_exits: VariableList<SignedVoluntaryExit, T::MaxVoluntaryExits>,
     #[superstruct(only(Altair, Merge, Capella, Deneb))]
     pub sync_aggregate: SyncAggregate<T>,
-    // We flatten the execution payload so that serde can use the name of the inner type,
-    // either `execution_payload` for full payloads, or `execution_payload_header` for blinded
-    // payloads.
-    #[superstruct(only(Merge), partial_getter(rename = "execution_payload_merge"))]
-    #[serde(flatten)]
-    pub execution_payload: Payload::Merge,
-    #[superstruct(only(Capella), partial_getter(rename = "execution_payload_capella"))]
-    #[serde(flatten)]
-    pub execution_payload: Payload::Capella,
-    #[superstruct(only(Deneb), partial_getter(rename = "execution_payload_deneb"))]
-    #[serde(flatten)]
-    pub execution_payload: Payload::Deneb,
+    #[superstruct(flatten(Merge, Capella, Deneb), meta_only(Full))]
+    pub execution_payload: ExecutionPayload<T>,
+    #[superstruct(flatten(Merge, Capella, Deneb), meta_only(Blinded))]
+    pub execution_payload_header: ExecutionPayloadHeader<T>,
     #[superstruct(only(Capella, Deneb))]
     pub bls_to_execution_changes:
         VariableList<SignedBlsToExecutionChange, T::MaxBlsToExecutionChanges>,
     #[superstruct(only(Deneb))]
     pub blob_kzg_commitments: KzgCommitments<T>,
-    #[superstruct(only(Base, Altair))]
-    #[ssz(skip_serializing, skip_deserializing)]
-    #[tree_hash(skip_hashing)]
-    #[serde(skip)]
-    #[arbitrary(default)]
-    pub _phantom: PhantomData<Payload>,
 }
 
-impl<T: EthSpec, Payload: AbstractExecPayload<T>> BeaconBlockBody<T, Payload> {
-    pub fn execution_payload(&self) -> Result<Payload::Ref<'_>, Error> {
+impl<T: EthSpec> BeaconBlockBody<T> {
+    pub fn execution_payload(&self) -> Result<ExecutionPayloadRef<'_, T>, Error> {
         self.to_ref().execution_payload()
     }
 }
 
-impl<'a, T: EthSpec, Payload: AbstractExecPayload<T>> BeaconBlockBodyRef<'a, T, Payload> {
-    pub fn execution_payload(&self) -> Result<Payload::Ref<'a>, Error> {
+impl<'a, T: EthSpec> BeaconBlockBodyRef<'a, T> {
+    pub fn execution_payload(&self) -> Result<ExecutionPayloadRef<'a, T>, Error> {
         match self {
-            Self::Base(_) | Self::Altair(_) => Err(Error::IncorrectStateVariant),
-            Self::Merge(body) => Ok(Payload::Ref::from(&body.execution_payload)),
-            Self::Capella(body) => Ok(Payload::Ref::from(&body.execution_payload)),
-            Self::Deneb(body) => Ok(Payload::Ref::from(&body.execution_payload)),
+            Self::Blinded(body) => Err(Error::PayloadConversionLogicFlaw),
+            Self::Full(body) => match body {
+                BeaconBlockBodyFull::Base(_) | BeaconBlockBodyFull::Altair(_) => {
+                    Err(Error::IncorrectStateVariant)
+                }
+                BeaconBlockBodyFull::Merge(body) => {
+                    Ok(ExecutionPayloadRef::from(&body.execution_payload))
+                }
+                BeaconBlockBodyFull::Capella(body) => {
+                    Ok(ExecutionPayloadRef::from(&body.execution_payload))
+                }
+                BeaconBlockBodyFull::Deneb(body) => {
+                    Ok(ExecutionPayloadRef::from(&body.execution_payload))
+                }
+            },
+        }
+    }
+
+    pub fn execution_payload_header(&self) -> Result<ExecutionPayloadHeaderRef<'a, T>, Error> {
+        match self {
+            Self::Blinded(body) => match body {
+                BeaconBlockBodyBlinded::Base(_) | BeaconBlockBodyBlinded::Altair(_) => {
+                    Err(Error::IncorrectStateVariant)
+                }
+                BeaconBlockBodyBlinded::Merge(body) => Ok(ExecutionPayloadHeaderRef::from(
+                    &body.execution_payload_header,
+                )),
+                BeaconBlockBodyBlinded::Capella(body) => Ok(ExecutionPayloadHeaderRef::from(
+                    &body.execution_payload_header,
+                )),
+                BeaconBlockBodyBlinded::Deneb(body) => Ok(ExecutionPayloadHeaderRef::from(
+                    &body.execution_payload_header,
+                )),
+            },
+            Self::Full(body) => Err(Error::PayloadConversionLogicFlaw),
         }
     }
 
@@ -110,93 +125,97 @@ impl<'a, T: EthSpec, Payload: AbstractExecPayload<T>> BeaconBlockBodyRef<'a, T, 
         &self,
         index: usize,
     ) -> Result<FixedVector<Hash256, T::KzgCommitmentInclusionProofDepth>, Error> {
-        match self {
-            Self::Base(_) | Self::Altair(_) | Self::Merge(_) | Self::Capella(_) => {
-                Err(Error::IncorrectStateVariant)
-            }
-            Self::Deneb(body) => {
-                // We compute the branches by generating 2 merkle trees:
-                // 1. Merkle tree for the `blob_kzg_commitments` List object
-                // 2. Merkle tree for the `BeaconBlockBody` container
-                // We then merge the branches for both the trees all the way up to the root.
+        todo!()
+        // match self {
+        //     Self::Base(_) | Self::Altair(_) | Self::Merge(_) | Self::Capella(_) => {
+        //         Err(Error::IncorrectStateVariant)
+        //     }
+        //     Self::Deneb(body) => {
+        //         // We compute the branches by generating 2 merkle trees:
+        //         // 1. Merkle tree for the `blob_kzg_commitments` List object
+        //         // 2. Merkle tree for the `BeaconBlockBody` container
+        //         // We then merge the branches for both the trees all the way up to the root.
 
-                // Part1 (Branches for the subtree rooted at `blob_kzg_commitments`)
-                //
-                // Branches for `blob_kzg_commitments` without length mix-in
-                let depth = T::max_blob_commitments_per_block()
-                    .next_power_of_two()
-                    .ilog2();
-                let leaves: Vec<_> = body
-                    .blob_kzg_commitments
-                    .iter()
-                    .map(|commitment| commitment.tree_hash_root())
-                    .collect();
-                let tree = MerkleTree::create(&leaves, depth as usize);
-                let (_, mut proof) = tree
-                    .generate_proof(index, depth as usize)
-                    .map_err(Error::MerkleTreeError)?;
+        //         // Part1 (Branches for the subtree rooted at `blob_kzg_commitments`)
+        //         //
+        //         // Branches for `blob_kzg_commitments` without length mix-in
+        //         let depth = T::max_blob_commitments_per_block()
+        //             .next_power_of_two()
+        //             .ilog2();
+        //         let leaves: Vec<_> = body
+        //             .blob_kzg_commitments
+        //             .iter()
+        //             .map(|commitment| commitment.tree_hash_root())
+        //             .collect();
+        //         let tree = MerkleTree::create(&leaves, depth as usize);
+        //         let (_, mut proof) = tree
+        //             .generate_proof(index, depth as usize)
+        //             .map_err(Error::MerkleTreeError)?;
 
-                // Add the branch corresponding to the length mix-in.
-                let length = body.blob_kzg_commitments.len();
-                let usize_len = std::mem::size_of::<usize>();
-                let mut length_bytes = [0; BYTES_PER_CHUNK];
-                length_bytes
-                    .get_mut(0..usize_len)
-                    .ok_or(Error::MerkleTreeError(MerkleTreeError::PleaseNotifyTheDevs))?
-                    .copy_from_slice(&length.to_le_bytes());
-                let length_root = Hash256::from_slice(length_bytes.as_slice());
-                proof.push(length_root);
+        //         // Add the branch corresponding to the length mix-in.
+        //         let length = body.blob_kzg_commitments.len();
+        //         let usize_len = std::mem::size_of::<usize>();
+        //         let mut length_bytes = [0; BYTES_PER_CHUNK];
+        //         length_bytes
+        //             .get_mut(0..usize_len)
+        //             .ok_or(Error::MerkleTreeError(MerkleTreeError::PleaseNotifyTheDevs))?
+        //             .copy_from_slice(&length.to_le_bytes());
+        //         let length_root = Hash256::from_slice(length_bytes.as_slice());
+        //         proof.push(length_root);
 
-                // Part 2
-                // Branches for `BeaconBlockBody` container
-                let leaves = [
-                    body.randao_reveal.tree_hash_root(),
-                    body.eth1_data.tree_hash_root(),
-                    body.graffiti.tree_hash_root(),
-                    body.proposer_slashings.tree_hash_root(),
-                    body.attester_slashings.tree_hash_root(),
-                    body.attestations.tree_hash_root(),
-                    body.deposits.tree_hash_root(),
-                    body.voluntary_exits.tree_hash_root(),
-                    body.sync_aggregate.tree_hash_root(),
-                    body.execution_payload.tree_hash_root(),
-                    body.bls_to_execution_changes.tree_hash_root(),
-                    body.blob_kzg_commitments.tree_hash_root(),
-                ];
-                let beacon_block_body_depth = leaves.len().next_power_of_two().ilog2() as usize;
-                let tree = MerkleTree::create(&leaves, beacon_block_body_depth);
-                let (_, mut proof_body) = tree
-                    .generate_proof(BLOB_KZG_COMMITMENTS_INDEX, beacon_block_body_depth)
-                    .map_err(Error::MerkleTreeError)?;
-                // Join the proofs for the subtree and the main tree
-                proof.append(&mut proof_body);
+        //         // Part 2
+        //         // Branches for `BeaconBlockBody` container
+        //         let leaves = [
+        //             body.randao_reveal.tree_hash_root(),
+        //             body.eth1_data.tree_hash_root(),
+        //             body.graffiti.tree_hash_root(),
+        //             body.proposer_slashings.tree_hash_root(),
+        //             body.attester_slashings.tree_hash_root(),
+        //             body.attestations.tree_hash_root(),
+        //             body.deposits.tree_hash_root(),
+        //             body.voluntary_exits.tree_hash_root(),
+        //             body.sync_aggregate.tree_hash_root(),
+        //             body.execution_payload.tree_hash_root(),
+        //             body.bls_to_execution_changes.tree_hash_root(),
+        //             body.blob_kzg_commitments.tree_hash_root(),
+        //         ];
+        //         let beacon_block_body_depth = leaves.len().next_power_of_two().ilog2() as usize;
+        //         let tree = MerkleTree::create(&leaves, beacon_block_body_depth);
+        //         let (_, mut proof_body) = tree
+        //             .generate_proof(BLOB_KZG_COMMITMENTS_INDEX, beacon_block_body_depth)
+        //             .map_err(Error::MerkleTreeError)?;
+        //         // Join the proofs for the subtree and the main tree
+        //         proof.append(&mut proof_body);
 
-                debug_assert_eq!(proof.len(), T::kzg_proof_inclusion_proof_depth());
-                Ok(proof.into())
-            }
-        }
+        //         debug_assert_eq!(proof.len(), T::kzg_proof_inclusion_proof_depth());
+        //         Ok(proof.into())
+        //     }
+        //}
     }
 }
 
-impl<'a, T: EthSpec, Payload: AbstractExecPayload<T>> BeaconBlockBodyRef<'a, T, Payload> {
+impl<'a, T: EthSpec> BeaconBlockBodyRef<'a, T> {
     /// Get the fork_name of this object
     pub fn fork_name(self) -> ForkName {
         match self {
-            BeaconBlockBodyRef::Base { .. } => ForkName::Base,
-            BeaconBlockBodyRef::Altair { .. } => ForkName::Altair,
-            BeaconBlockBodyRef::Merge { .. } => ForkName::Merge,
-            BeaconBlockBodyRef::Capella { .. } => ForkName::Capella,
-            BeaconBlockBodyRef::Deneb { .. } => ForkName::Deneb,
+            BeaconBlockBodyRef::Blinded(BeaconBlockBodyBlinded::Base(_)) => ForkName::Base,
+            BeaconBlockBodyRef::Blinded(BeaconBlockBodyBlinded::Altair(_)) => ForkName::Altair,
+            BeaconBlockBodyRef::Blinded(BeaconBlockBodyBlinded::Merge(_)) => ForkName::Merge,
+            BeaconBlockBodyRef::Blinded(BeaconBlockBodyBlinded::Capella(_)) => ForkName::Capella,
+            BeaconBlockBodyRef::Blinded(BeaconBlockBodyBlinded::Deneb(_)) => ForkName::Deneb,
+            BeaconBlockBodyRef::Full(BeaconBlockBodyFull::Base(_)) => ForkName::Base,
+            BeaconBlockBodyRef::Full(BeaconBlockBodyFull::Altair(_)) => ForkName::Altair,
+            BeaconBlockBodyRef::Full(BeaconBlockBodyFull::Merge(_)) => ForkName::Merge,
+            BeaconBlockBodyRef::Full(BeaconBlockBodyFull::Capella(_)) => ForkName::Capella,
+            BeaconBlockBodyRef::Full(BeaconBlockBodyFull::Deneb(_)) => ForkName::Deneb,
         }
     }
 }
 
 // We can convert pre-Bellatrix block bodies without payloads into block bodies "with" payloads.
-impl<E: EthSpec> From<BeaconBlockBodyBase<E, BlindedPayload<E>>>
-    for BeaconBlockBodyBase<E, FullPayload<E>>
-{
-    fn from(body: BeaconBlockBodyBase<E, BlindedPayload<E>>) -> Self {
-        let BeaconBlockBodyBase {
+impl<E: EthSpec> From<BeaconBlockBodyBlindedBase<E>> for BeaconBlockBodyFullBase<E> {
+    fn from(body: BeaconBlockBodyBlindedBase<E>) -> Self {
+        let BeaconBlockBodyBlindedBase {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -205,10 +224,9 @@ impl<E: EthSpec> From<BeaconBlockBodyBase<E, BlindedPayload<E>>>
             attestations,
             deposits,
             voluntary_exits,
-            _phantom,
         } = body;
 
-        BeaconBlockBodyBase {
+        BeaconBlockBodyFullBase {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -217,16 +235,13 @@ impl<E: EthSpec> From<BeaconBlockBodyBase<E, BlindedPayload<E>>>
             attestations,
             deposits,
             voluntary_exits,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<E: EthSpec> From<BeaconBlockBodyAltair<E, BlindedPayload<E>>>
-    for BeaconBlockBodyAltair<E, FullPayload<E>>
-{
-    fn from(body: BeaconBlockBodyAltair<E, BlindedPayload<E>>) -> Self {
-        let BeaconBlockBodyAltair {
+impl<E: EthSpec> From<BeaconBlockBodyBlindedAltair<E>> for BeaconBlockBodyFullAltair<E> {
+    fn from(body: BeaconBlockBodyBlindedAltair<E>) -> Self {
+        let BeaconBlockBodyBlindedAltair {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -236,10 +251,9 @@ impl<E: EthSpec> From<BeaconBlockBodyAltair<E, BlindedPayload<E>>>
             deposits,
             voluntary_exits,
             sync_aggregate,
-            _phantom,
         } = body;
 
-        BeaconBlockBodyAltair {
+        BeaconBlockBodyFullAltair {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -249,20 +263,16 @@ impl<E: EthSpec> From<BeaconBlockBodyAltair<E, BlindedPayload<E>>>
             deposits,
             voluntary_exits,
             sync_aggregate,
-            _phantom: PhantomData,
         }
     }
 }
 
 // Likewise bodies with payloads can be transformed into bodies without.
-impl<E: EthSpec> From<BeaconBlockBodyBase<E, FullPayload<E>>>
-    for (
-        BeaconBlockBodyBase<E, BlindedPayload<E>>,
-        Option<ExecutionPayload<E>>,
-    )
+impl<E: EthSpec> From<BeaconBlockBodyFullBase<E>>
+    for (BeaconBlockBodyBlindedBase<E>, Option<ExecutionPayload<E>>)
 {
-    fn from(body: BeaconBlockBodyBase<E, FullPayload<E>>) -> Self {
-        let BeaconBlockBodyBase {
+    fn from(body: BeaconBlockBodyFullBase<E>) -> Self {
+        let BeaconBlockBodyFullBase {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -271,11 +281,10 @@ impl<E: EthSpec> From<BeaconBlockBodyBase<E, FullPayload<E>>>
             attestations,
             deposits,
             voluntary_exits,
-            _phantom,
         } = body;
 
         (
-            BeaconBlockBodyBase {
+            BeaconBlockBodyBlindedBase {
                 randao_reveal,
                 eth1_data,
                 graffiti,
@@ -284,21 +293,17 @@ impl<E: EthSpec> From<BeaconBlockBodyBase<E, FullPayload<E>>>
                 attestations,
                 deposits,
                 voluntary_exits,
-                _phantom: PhantomData,
             },
             None,
         )
     }
 }
 
-impl<E: EthSpec> From<BeaconBlockBodyAltair<E, FullPayload<E>>>
-    for (
-        BeaconBlockBodyAltair<E, BlindedPayload<E>>,
-        Option<ExecutionPayload<E>>,
-    )
+impl<E: EthSpec> From<BeaconBlockBodyFullAltair<E>>
+    for (BeaconBlockBodyBlindedAltair<E>, Option<ExecutionPayload<E>>)
 {
-    fn from(body: BeaconBlockBodyAltair<E, FullPayload<E>>) -> Self {
-        let BeaconBlockBodyAltair {
+    fn from(body: BeaconBlockBodyFullAltair<E>) -> Self {
+        let BeaconBlockBodyFullAltair {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -308,11 +313,10 @@ impl<E: EthSpec> From<BeaconBlockBodyAltair<E, FullPayload<E>>>
             deposits,
             voluntary_exits,
             sync_aggregate,
-            _phantom,
         } = body;
 
         (
-            BeaconBlockBodyAltair {
+            BeaconBlockBodyBlindedAltair {
                 randao_reveal,
                 eth1_data,
                 graffiti,
@@ -322,21 +326,20 @@ impl<E: EthSpec> From<BeaconBlockBodyAltair<E, FullPayload<E>>>
                 deposits,
                 voluntary_exits,
                 sync_aggregate,
-                _phantom: PhantomData,
             },
             None,
         )
     }
 }
 
-impl<E: EthSpec> From<BeaconBlockBodyMerge<E, FullPayload<E>>>
+impl<E: EthSpec> From<BeaconBlockBodyFullMerge<E>>
     for (
-        BeaconBlockBodyMerge<E, BlindedPayload<E>>,
+        BeaconBlockBodyBlindedMerge<E>,
         Option<ExecutionPayloadMerge<E>>,
     )
 {
-    fn from(body: BeaconBlockBodyMerge<E, FullPayload<E>>) -> Self {
-        let BeaconBlockBodyMerge {
+    fn from(body: BeaconBlockBodyFullMerge<E>) -> Self {
+        let BeaconBlockBodyFullMerge {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -346,11 +349,11 @@ impl<E: EthSpec> From<BeaconBlockBodyMerge<E, FullPayload<E>>>
             deposits,
             voluntary_exits,
             sync_aggregate,
-            execution_payload: FullPayloadMerge { execution_payload },
+            execution_payload,
         } = body;
 
         (
-            BeaconBlockBodyMerge {
+            BeaconBlockBodyBlindedMerge {
                 randao_reveal,
                 eth1_data,
                 graffiti,
@@ -360,23 +363,21 @@ impl<E: EthSpec> From<BeaconBlockBodyMerge<E, FullPayload<E>>>
                 deposits,
                 voluntary_exits,
                 sync_aggregate,
-                execution_payload: BlindedPayloadMerge {
-                    execution_payload_header: From::from(&execution_payload),
-                },
+                execution_payload_header: From::from(&execution_payload),
             },
             Some(execution_payload),
         )
     }
 }
 
-impl<E: EthSpec> From<BeaconBlockBodyCapella<E, FullPayload<E>>>
+impl<E: EthSpec> From<BeaconBlockBodyFullCapella<E>>
     for (
-        BeaconBlockBodyCapella<E, BlindedPayload<E>>,
+        BeaconBlockBodyBlindedCapella<E>,
         Option<ExecutionPayloadCapella<E>>,
     )
 {
-    fn from(body: BeaconBlockBodyCapella<E, FullPayload<E>>) -> Self {
-        let BeaconBlockBodyCapella {
+    fn from(body: BeaconBlockBodyFullCapella<E>) -> Self {
+        let BeaconBlockBodyFullCapella {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -386,12 +387,12 @@ impl<E: EthSpec> From<BeaconBlockBodyCapella<E, FullPayload<E>>>
             deposits,
             voluntary_exits,
             sync_aggregate,
-            execution_payload: FullPayloadCapella { execution_payload },
+            execution_payload,
             bls_to_execution_changes,
         } = body;
 
         (
-            BeaconBlockBodyCapella {
+            BeaconBlockBodyBlindedCapella {
                 randao_reveal,
                 eth1_data,
                 graffiti,
@@ -401,9 +402,7 @@ impl<E: EthSpec> From<BeaconBlockBodyCapella<E, FullPayload<E>>>
                 deposits,
                 voluntary_exits,
                 sync_aggregate,
-                execution_payload: BlindedPayloadCapella {
-                    execution_payload_header: From::from(&execution_payload),
-                },
+                execution_payload_header: From::from(&execution_payload),
                 bls_to_execution_changes,
             },
             Some(execution_payload),
@@ -411,14 +410,14 @@ impl<E: EthSpec> From<BeaconBlockBodyCapella<E, FullPayload<E>>>
     }
 }
 
-impl<E: EthSpec> From<BeaconBlockBodyDeneb<E, FullPayload<E>>>
+impl<E: EthSpec> From<BeaconBlockBodyFullDeneb<E>>
     for (
-        BeaconBlockBodyDeneb<E, BlindedPayload<E>>,
+        BeaconBlockBodyBlindedDeneb<E>,
         Option<ExecutionPayloadDeneb<E>>,
     )
 {
-    fn from(body: BeaconBlockBodyDeneb<E, FullPayload<E>>) -> Self {
-        let BeaconBlockBodyDeneb {
+    fn from(body: BeaconBlockBodyFullDeneb<E>) -> Self {
+        let BeaconBlockBodyFullDeneb {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -428,13 +427,13 @@ impl<E: EthSpec> From<BeaconBlockBodyDeneb<E, FullPayload<E>>>
             deposits,
             voluntary_exits,
             sync_aggregate,
-            execution_payload: FullPayloadDeneb { execution_payload },
+            execution_payload,
             bls_to_execution_changes,
             blob_kzg_commitments,
         } = body;
 
         (
-            BeaconBlockBodyDeneb {
+            BeaconBlockBodyBlindedDeneb {
                 randao_reveal,
                 eth1_data,
                 graffiti,
@@ -444,9 +443,7 @@ impl<E: EthSpec> From<BeaconBlockBodyDeneb<E, FullPayload<E>>>
                 deposits,
                 voluntary_exits,
                 sync_aggregate,
-                execution_payload: BlindedPayloadDeneb {
-                    execution_payload_header: From::from(&execution_payload),
-                },
+                execution_payload_header: From::from(&execution_payload),
                 bls_to_execution_changes,
                 blob_kzg_commitments,
             },
@@ -456,23 +453,23 @@ impl<E: EthSpec> From<BeaconBlockBodyDeneb<E, FullPayload<E>>>
 }
 
 // We can clone a full block into a blinded block, without cloning the payload.
-impl<E: EthSpec> BeaconBlockBodyBase<E, FullPayload<E>> {
-    pub fn clone_as_blinded(&self) -> BeaconBlockBodyBase<E, BlindedPayload<E>> {
+impl<E: EthSpec> BeaconBlockBodyFullBase<E> {
+    pub fn clone_as_blinded(&self) -> BeaconBlockBodyBlindedBase<E> {
         let (block_body, _payload) = self.clone().into();
         block_body
     }
 }
 
-impl<E: EthSpec> BeaconBlockBodyAltair<E, FullPayload<E>> {
-    pub fn clone_as_blinded(&self) -> BeaconBlockBodyAltair<E, BlindedPayload<E>> {
+impl<E: EthSpec> BeaconBlockBodyFullAltair<E> {
+    pub fn clone_as_blinded(&self) -> BeaconBlockBodyBlindedAltair<E> {
         let (block_body, _payload) = self.clone().into();
         block_body
     }
 }
 
-impl<E: EthSpec> BeaconBlockBodyMerge<E, FullPayload<E>> {
-    pub fn clone_as_blinded(&self) -> BeaconBlockBodyMerge<E, BlindedPayload<E>> {
-        let BeaconBlockBodyMerge {
+impl<E: EthSpec> BeaconBlockBodyFullMerge<E> {
+    pub fn clone_as_blinded(&self) -> BeaconBlockBodyBlindedMerge<E> {
+        let BeaconBlockBodyFullMerge {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -482,10 +479,10 @@ impl<E: EthSpec> BeaconBlockBodyMerge<E, FullPayload<E>> {
             deposits,
             voluntary_exits,
             sync_aggregate,
-            execution_payload: FullPayloadMerge { execution_payload },
+            execution_payload,
         } = self;
 
-        BeaconBlockBodyMerge {
+        BeaconBlockBodyBlindedMerge {
             randao_reveal: randao_reveal.clone(),
             eth1_data: eth1_data.clone(),
             graffiti: *graffiti,
@@ -495,16 +492,14 @@ impl<E: EthSpec> BeaconBlockBodyMerge<E, FullPayload<E>> {
             deposits: deposits.clone(),
             voluntary_exits: voluntary_exits.clone(),
             sync_aggregate: sync_aggregate.clone(),
-            execution_payload: BlindedPayloadMerge {
-                execution_payload_header: execution_payload.into(),
-            },
+            execution_payload_header: execution_payload.into(),
         }
     }
 }
 
-impl<E: EthSpec> BeaconBlockBodyCapella<E, FullPayload<E>> {
-    pub fn clone_as_blinded(&self) -> BeaconBlockBodyCapella<E, BlindedPayload<E>> {
-        let BeaconBlockBodyCapella {
+impl<E: EthSpec> BeaconBlockBodyFullCapella<E> {
+    pub fn clone_as_blinded(&self) -> BeaconBlockBodyBlindedCapella<E> {
+        let BeaconBlockBodyFullCapella {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -514,11 +509,11 @@ impl<E: EthSpec> BeaconBlockBodyCapella<E, FullPayload<E>> {
             deposits,
             voluntary_exits,
             sync_aggregate,
-            execution_payload: FullPayloadCapella { execution_payload },
+            execution_payload,
             bls_to_execution_changes,
         } = self;
 
-        BeaconBlockBodyCapella {
+        BeaconBlockBodyBlindedCapella {
             randao_reveal: randao_reveal.clone(),
             eth1_data: eth1_data.clone(),
             graffiti: *graffiti,
@@ -528,17 +523,15 @@ impl<E: EthSpec> BeaconBlockBodyCapella<E, FullPayload<E>> {
             deposits: deposits.clone(),
             voluntary_exits: voluntary_exits.clone(),
             sync_aggregate: sync_aggregate.clone(),
-            execution_payload: BlindedPayloadCapella {
-                execution_payload_header: execution_payload.into(),
-            },
+            execution_payload_header: execution_payload.into(),
             bls_to_execution_changes: bls_to_execution_changes.clone(),
         }
     }
 }
 
-impl<E: EthSpec> BeaconBlockBodyDeneb<E, FullPayload<E>> {
-    pub fn clone_as_blinded(&self) -> BeaconBlockBodyDeneb<E, BlindedPayload<E>> {
-        let BeaconBlockBodyDeneb {
+impl<E: EthSpec> BeaconBlockBodyFullDeneb<E> {
+    pub fn clone_as_blinded(&self) -> BeaconBlockBodyBlindedDeneb<E> {
+        let BeaconBlockBodyFullDeneb {
             randao_reveal,
             eth1_data,
             graffiti,
@@ -548,12 +541,12 @@ impl<E: EthSpec> BeaconBlockBodyDeneb<E, FullPayload<E>> {
             deposits,
             voluntary_exits,
             sync_aggregate,
-            execution_payload: FullPayloadDeneb { execution_payload },
+            execution_payload,
             bls_to_execution_changes,
             blob_kzg_commitments,
         } = self;
 
-        BeaconBlockBodyDeneb {
+        BeaconBlockBodyBlindedDeneb {
             randao_reveal: randao_reveal.clone(),
             eth1_data: eth1_data.clone(),
             graffiti: *graffiti,
@@ -563,23 +556,18 @@ impl<E: EthSpec> BeaconBlockBodyDeneb<E, FullPayload<E>> {
             deposits: deposits.clone(),
             voluntary_exits: voluntary_exits.clone(),
             sync_aggregate: sync_aggregate.clone(),
-            execution_payload: BlindedPayloadDeneb {
-                execution_payload_header: execution_payload.into(),
-            },
+            execution_payload_header: execution_payload.into(),
             bls_to_execution_changes: bls_to_execution_changes.clone(),
             blob_kzg_commitments: blob_kzg_commitments.clone(),
         }
     }
 }
 
-impl<E: EthSpec> From<BeaconBlockBody<E, FullPayload<E>>>
-    for (
-        BeaconBlockBody<E, BlindedPayload<E>>,
-        Option<ExecutionPayload<E>>,
-    )
+impl<E: EthSpec> From<BeaconBlockBodyFull<E>>
+    for (BeaconBlockBodyBlinded<E>, Option<ExecutionPayload<E>>)
 {
-    fn from(body: BeaconBlockBody<E, FullPayload<E>>) -> Self {
-        map_beacon_block_body!(body, |inner, cons| {
+    fn from(body: BeaconBlockBodyFull<E>) -> Self {
+        map_beacon_block_body_full!(body, |inner, cons| {
             let (block, payload) = inner.into();
             (cons(block), payload.map(Into::into))
         })
