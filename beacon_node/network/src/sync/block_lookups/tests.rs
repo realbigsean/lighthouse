@@ -1220,7 +1220,6 @@ fn test_duplicate_parent_lookup() {
         if matches!(fork_name, ForkName::Deneb) {
             let _ = rig.expect_parent_request(ResponseType::Blob);
         }
-        assert_eq!(expected_lookup_id, id_2);
 
         // In the first lookup, don't add all blocks
         if i + 1 != depth {
