@@ -14,6 +14,7 @@ use beacon_chain::test_utils::{
     build_log, generate_rand_block_and_blobs, BeaconChainHarness, EphemeralHarnessType, NumBlobs,
 };
 use beacon_processor::WorkEvent;
+use itertools::Itertools;
 use lighthouse_network::rpc::RPCResponseErrorCode;
 use lighthouse_network::{NetworkGlobals, Request};
 use slot_clock::{ManualSlotClock, SlotClock, TestingSlotClock};
@@ -1166,7 +1167,6 @@ fn test_duplicate_parent_lookup() {
     // chain.
     let depth = 4;
     let mut blocks = Vec::<Arc<SignedBeaconBlock<E>>>::with_capacity(depth);
-    let mut other_blocks = Vec::<Arc<SignedBeaconBlock<E>>>::with_capacity(depth);
     while blocks.len() < depth {
         let parent = blocks
             .last()
@@ -1174,10 +1174,9 @@ fn test_duplicate_parent_lookup() {
             .unwrap_or_else(Hash256::random);
         let block = Arc::new(rig.block_with_parent(parent, fork_name));
         blocks.push(block.clone());
-        other_blocks.push(block);
     }
 
-    // trigger duplicate parent lookups
+    // trigger three identical parent lookups
     let peer_id = PeerId::random();
     let trigger_block = blocks.pop().unwrap();
     let chain_hash = trigger_block.canonical_root();
@@ -1198,78 +1197,141 @@ fn test_duplicate_parent_lookup() {
         peer_id,
         &mut cx,
     );
+    bl.search_parent(
+        trigger_slot,
+        trigger_block_root,
+        trigger_parent_root,
+        peer_id,
+        &mut cx,
+    );
+    assert_eq!(bl.parent_lookups.len(), 3);
 
-    assert_eq!(bl.parent_lookups.len(), 2);
-    for (i, block) in blocks.into_iter().rev().enumerate() {
-        dbg!(i);
-        let id_1 = rig.expect_parent_request(response_type);
-        // If we're in deneb, a blob request should have been triggered as well,
-        // we don't require a response because we're generateing 0-blob blocks in this test.
-        if matches!(fork_name, ForkName::Deneb) {
-            let _ = rig.expect_parent_request(ResponseType::Blob);
-        }
-        let id_2 = rig.expect_parent_request(response_type);
-        if matches!(fork_name, ForkName::Deneb) {
-            let _ = rig.expect_parent_request(ResponseType::Blob);
-        }
+    // Reverse the block order
+    let mut blocks = blocks.iter().rev().collect_vec();
 
-        // In the first lookup, don't add all blocks
-        if i + 1 != depth {
-            bl.parent_lookup_response::<BlockRequestState<Parent>>(
-                id_1,
-                peer_id,
-                Some(block.clone()),
-                D,
-                &cx,
-            );
-            bl.parent_lookup_response::<BlockRequestState<Parent>>(id_1, peer_id, None, D, &cx);
-            rig.expect_block_process(response_type);
-        }
-
-        // Add all blocks in the second lookup
-        bl.parent_lookup_response::<BlockRequestState<Parent>>(
-            id_2,
-            peer_id,
-            Some(block.clone()),
-            D,
-            &cx,
-        );
-        bl.parent_lookup_response::<BlockRequestState<Parent>>(id_2, peer_id, None, D, &cx);
-        rig.expect_block_process(response_type);
-
-        // This could be associated with either lookup, and it should trigger a chain processing event.
-        if i + 2 == depth {
-            // one block was removed
-            bl.parent_block_processed(
-                chain_hash,
-                BlockError::BlockIsAlreadyKnown(block.canonical_root()).into(),
-                &mut cx,
-            );
-        } else {
-            bl.parent_block_processed(
-                chain_hash,
-                BlockError::ParentUnknown(RpcBlock::new_without_blobs(None, block.clone())).into(),
-                &mut cx,
-            );
-            bl.parent_block_processed(
-                chain_hash,
-                BlockError::ParentUnknown(RpcBlock::new_without_blobs(None, block)).into(),
-                &mut cx,
-            )
-        }
+    // Expect three parent requests triggered.
+    let id_1 = rig.expect_parent_request(response_type);
+    if matches!(fork_name, ForkName::Deneb) {
+        let _ = rig.expect_parent_request(ResponseType::Blob);
     }
+    let id_2 = rig.expect_parent_request(response_type);
+    if matches!(fork_name, ForkName::Deneb) {
+        let _ = rig.expect_parent_request(ResponseType::Blob);
+    }
+    let _ = rig.expect_parent_request(response_type);
+    if matches!(fork_name, ForkName::Deneb) {
+        let _ = rig.expect_parent_request(ResponseType::Blob);
+    }
+
+    // Get a block response for request 1.
+    bl.parent_lookup_response::<BlockRequestState<Parent>>(
+        id_1,
+        peer_id,
+        blocks.get(0).cloned().cloned(),
+        D,
+        &cx,
+    );
+    bl.parent_lookup_response::<BlockRequestState<Parent>>(id_1, peer_id, None, D, &cx);
+
+    // An unknown parent is triggered
+    bl.parent_block_processed(
+        chain_hash,
+        BlockError::ParentUnknown(RpcBlock::new_without_blobs(
+            None,
+            blocks.get(0).unwrap().clone().clone(),
+        ))
+        .into(),
+        &mut cx,
+    );
+    assert_eq!(0, bl.parent_lookups.get(0).unwrap().downloaded_blocks.len());
+    assert_eq!(0, bl.parent_lookups.get(1).unwrap().downloaded_blocks.len());
+    assert_eq!(1, bl.parent_lookups.get(2).unwrap().downloaded_blocks.len());
+
+    // Get the parent block response for request 1.
+    bl.parent_lookup_response::<BlockRequestState<Parent>>(
+        id_1,
+        peer_id,
+        blocks.get(1).cloned().cloned(),
+        D,
+        &cx,
+    );
+    bl.parent_lookup_response::<BlockRequestState<Parent>>(id_1, peer_id, None, D, &cx);
+
+    // An unknown parent is triggered. Notice this parent is NOT added to the same lookup
+    bl.parent_block_processed(
+        chain_hash,
+        BlockError::ParentUnknown(RpcBlock::new_without_blobs(
+            None,
+            blocks.get(1).unwrap().clone().clone(),
+        ))
+        .into(),
+        &mut cx,
+    );
+    assert_eq!(1, bl.parent_lookups.get(0).unwrap().downloaded_blocks.len());
+    assert_eq!(0, bl.parent_lookups.get(1).unwrap().downloaded_blocks.len());
+    assert_eq!(1, bl.parent_lookups.get(2).unwrap().downloaded_blocks.len());
+
+    // Get the next parent response for request 1.
+    bl.parent_lookup_response::<BlockRequestState<Parent>>(
+        id_1,
+        peer_id,
+        blocks.get(2).cloned().cloned(),
+        D,
+        &cx,
+    );
+    bl.parent_lookup_response::<BlockRequestState<Parent>>(id_1, peer_id, None, D, &cx);
+
+    // An unknown parent is triggered.
+    bl.parent_block_processed(
+        chain_hash,
+        BlockError::ParentUnknown(RpcBlock::new_without_blobs(
+            None,
+            blocks.get(2).unwrap().clone().clone(),
+        ))
+        .into(),
+        &mut cx,
+    );
+    assert_eq!(1, bl.parent_lookups.get(0).unwrap().downloaded_blocks.len());
+    assert_eq!(0, bl.parent_lookups.get(1).unwrap().downloaded_blocks.len());
+    assert_eq!(2, bl.parent_lookups.get(2).unwrap().downloaded_blocks.len());
+
+    // Get a block response for request 2.
+    bl.parent_lookup_response::<BlockRequestState<Parent>>(
+        id_2,
+        peer_id,
+        blocks.get(0).cloned().cloned(),
+        D,
+        &cx,
+    );
+    bl.parent_lookup_response::<BlockRequestState<Parent>>(id_2, peer_id, None, D, &cx);
+    rig.expect_block_process(response_type);
+
+    // An unknown parent is triggered
+    bl.parent_block_processed(
+        chain_hash,
+        BlockError::ParentUnknown(RpcBlock::new_without_blobs(
+            None,
+            blocks.get(0).unwrap().clone().clone(),
+        ))
+        .into(),
+        &mut cx,
+    );
+    assert_eq!(0, bl.parent_lookups.get(0).unwrap().downloaded_blocks.len());
+    assert_eq!(2, bl.parent_lookups.get(1).unwrap().downloaded_blocks.len());
+    assert_eq!(2, bl.parent_lookups.get(2).unwrap().downloaded_blocks.len());
+
+    // Check that at this point, we have 3 lookups.
+    assert_eq!(bl.parent_lookups.len(), 3);
+
+    // Get a block processing response. This should us to send a chain for processing.
+    bl.parent_block_processed(chain_hash, BlockError::BlockIsAlreadyKnown.into(), &mut cx);
+
+    // Notice the lookup of size zero is sent for processing.
+    assert_eq!(2, bl.parent_lookups.get(0).unwrap().downloaded_blocks.len());
+    assert_eq!(2, bl.parent_lookups.get(1).unwrap().downloaded_blocks.len());
 
     // Processing succeeds, now the rest of the chain should be sent for processing.
     rig.expect_parent_chain_process();
-
-    // Check that one of the lookups is still present
-    assert_eq!(bl.parent_lookups.len(), 1);
-
-    // If the first lookup is still present, this is incorrect.
-    assert_eq!(
-        bl.parent_lookups.get(0).unwrap().current_parent_request.id,
-        2
-    );
 }
 
 mod deneb_only {

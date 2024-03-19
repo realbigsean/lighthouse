@@ -25,7 +25,7 @@ pub(crate) struct ParentLookup<T: BeaconChainTypes> {
     /// The root of the block triggering this parent request.
     chain_hash: Hash256,
     /// The blocks that have currently been downloaded.
-    downloaded_blocks: Vec<DownloadedBlock<T::EthSpec>>,
+    pub(crate) downloaded_blocks: Vec<DownloadedBlock<T::EthSpec>>,
     /// Request of the last parent.
     pub current_parent_request: SingleBlockLookup<Parent, T>,
 }
