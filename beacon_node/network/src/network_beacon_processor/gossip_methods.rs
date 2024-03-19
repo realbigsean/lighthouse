@@ -963,7 +963,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
                 return None;
             }
-            Err(BlockError::BlockIsAlreadyKnown(_)) => {
+            Err(BlockError::BlockIsAlreadyKnown) => {
                 debug!(
                     self.log,
                     "Gossip block is already known";

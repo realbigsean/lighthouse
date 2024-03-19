@@ -811,7 +811,7 @@ impl<T: BeaconChainTypes> BlockLookups<T> {
         let root = lookup.block_root();
         trace!(self.log, "Single block processing failed"; "block" => %root, "error" => %e);
         match e {
-            BlockError::BlockIsAlreadyKnown(_) => {
+            BlockError::BlockIsAlreadyKnown => {
                 // No error here
                 return Ok(None);
             }
@@ -898,17 +898,17 @@ impl<T: BeaconChainTypes> BlockLookups<T> {
         match &result {
             BlockProcessingResult::Ok(status) => match status {
                 AvailabilityProcessingStatus::Imported(block_root) => {
-                    debug!(self.log, "Parent block processing succeeded"; &parent_lookup, "block_root" => ?block_root)
+                    trace!(self.log, "Parent block processing succeeded"; &parent_lookup, "block_root" => ?block_root)
                 }
                 AvailabilityProcessingStatus::MissingComponents(_, block_root) => {
-                    debug!(self.log, "Parent missing parts, triggering single block lookup "; &parent_lookup,"block_root" => ?block_root)
+                    trace!(self.log, "Parent missing parts, triggering single block lookup "; &parent_lookup,"block_root" => ?block_root)
                 }
             },
             BlockProcessingResult::Err(e) => {
-                debug!(self.log, "Parent block processing failed"; &parent_lookup, "error" => %e)
+                trace!(self.log, "Parent block processing failed"; &parent_lookup, "error" => %e)
             }
             BlockProcessingResult::Ignored => {
-                debug!(
+                trace!(
                     self.log,
                     "Parent block processing job was ignored";
                     "action" => "re-requesting block",
@@ -954,7 +954,7 @@ impl<T: BeaconChainTypes> BlockLookups<T> {
                 self.request_parent(parent_lookup, cx);
             }
             BlockProcessingResult::Ok(AvailabilityProcessingStatus::Imported(_))
-            | BlockProcessingResult::Err(BlockError::BlockIsAlreadyKnown(_)) => {
+            | BlockProcessingResult::Err(BlockError::BlockIsAlreadyKnown { .. }) => {
                 // Check if the beacon processor is available
                 let Some(beacon_processor) = cx.beacon_processor_if_enabled() else {
                     return trace!(

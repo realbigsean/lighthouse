@@ -190,7 +190,7 @@ pub enum BlockError<T: EthSpec> {
     /// ## Peer scoring
     ///
     /// The block is valid and we have already imported a block with this hash.
-    BlockIsAlreadyKnown(Hash256),
+    BlockIsAlreadyKnown,
     /// The block slot exceeds the MAXIMUM_BLOCK_SLOT_NUMBER.
     ///
     /// ## Peer scoring
@@ -832,7 +832,7 @@ impl<T: BeaconChainTypes> GossipVerifiedBlock<T> {
         // already know this block.
         let fork_choice_read_lock = chain.canonical_head.fork_choice_read_lock();
         if fork_choice_read_lock.contains_block(&block_root) {
-            return Err(BlockError::BlockIsAlreadyKnown(block_root));
+            return Err(BlockError::BlockIsAlreadyKnown);
         }
 
         // Do not process a block that doesn't descend from the finalized root.
@@ -966,7 +966,7 @@ impl<T: BeaconChainTypes> GossipVerifiedBlock<T> {
             SeenBlock::Slashable => {
                 return Err(BlockError::Slashable);
             }
-            SeenBlock::Duplicate => return Err(BlockError::BlockIsAlreadyKnown(block_root)),
+            SeenBlock::Duplicate => return Err(BlockError::BlockIsAlreadyKnown),
             SeenBlock::UniqueNonSlashable => {}
         };
 
@@ -1784,7 +1784,7 @@ pub fn check_block_relevancy<T: BeaconChainTypes>(
         .fork_choice_read_lock()
         .contains_block(&block_root)
     {
-        return Err(BlockError::BlockIsAlreadyKnown(block_root));
+        return Err(BlockError::BlockIsAlreadyKnown);
     }
 
     Ok(block_root)
