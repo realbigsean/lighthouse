@@ -458,7 +458,11 @@ fn test_parent_lookup_happy_path() {
     rig.expect_empty_network();
 
     // Processing succeeds, now the rest of the chain should be sent for processing.
-    bl.parent_block_processed(chain_hash, BlockError::BlockIsAlreadyKnown.into(), &mut cx);
+    bl.parent_block_processed(
+        chain_hash,
+        BlockError::BlockIsAlreadyKnown(block_root).into(),
+        &mut cx,
+    );
     rig.expect_parent_chain_process();
     let process_result = BatchProcessResult::Success {
         was_non_empty: true,
@@ -1154,6 +1158,127 @@ fn test_same_chain_race_condition() {
     };
     bl.parent_chain_processed(chain_hash, process_result, &cx);
     assert_eq!(bl.parent_lookups.len(), 0);
+}
+
+#[test]
+fn test_duplicate_parent_lookup() {
+    let response_type = ResponseType::Block;
+    let (mut bl, mut cx, mut rig) = TestRig::test_setup(true);
+
+    let fork_name = rig
+        .harness
+        .spec
+        .fork_name_at_slot::<E>(rig.harness.chain.slot().unwrap());
+
+    // if we use one or two blocks it will match on the hash or the parent hash, so make a longer
+    // chain.
+    let depth = 4;
+    let mut blocks = Vec::<Arc<SignedBeaconBlock<E>>>::with_capacity(depth);
+    let mut other_blocks = Vec::<Arc<SignedBeaconBlock<E>>>::with_capacity(depth);
+    while blocks.len() < depth {
+        let parent = blocks
+            .last()
+            .map(|b| b.canonical_root())
+            .unwrap_or_else(Hash256::random);
+        let block = Arc::new(rig.block_with_parent(parent, fork_name));
+        blocks.push(block.clone());
+        other_blocks.push(block);
+    }
+
+    // trigger duplicate parent lookups
+    let peer_id = PeerId::random();
+    let trigger_block = blocks.pop().unwrap();
+    let chain_hash = trigger_block.canonical_root();
+    let trigger_block_root = trigger_block.canonical_root();
+    let trigger_parent_root = trigger_block.parent_root();
+    let trigger_slot = trigger_block.slot();
+    bl.search_parent(
+        trigger_slot,
+        trigger_block_root,
+        trigger_parent_root,
+        peer_id,
+        &mut cx,
+    );
+    bl.search_parent(
+        trigger_slot,
+        trigger_block_root,
+        trigger_parent_root,
+        peer_id,
+        &mut cx,
+    );
+
+    assert_eq!(bl.parent_lookups.len(), 2);
+    for (i, block) in blocks.into_iter().rev().enumerate() {
+        dbg!(i);
+        let id_1 = rig.expect_parent_request(response_type);
+        // If we're in deneb, a blob request should have been triggered as well,
+        // we don't require a response because we're generateing 0-blob blocks in this test.
+        if matches!(fork_name, ForkName::Deneb) {
+            let _ = rig.expect_parent_request(ResponseType::Blob);
+        }
+        let id_2 = rig.expect_parent_request(response_type);
+        if matches!(fork_name, ForkName::Deneb) {
+            let _ = rig.expect_parent_request(ResponseType::Blob);
+        }
+        assert_eq!(expected_lookup_id, id_2);
+
+        // In the first lookup, don't add all blocks
+        if i + 1 != depth {
+            bl.parent_lookup_response::<BlockRequestState<Parent>>(
+                id_1,
+                peer_id,
+                Some(block.clone()),
+                D,
+                &cx,
+            );
+            bl.parent_lookup_response::<BlockRequestState<Parent>>(id_1, peer_id, None, D, &cx);
+            rig.expect_block_process(response_type);
+        }
+
+        // Add all blocks in the second lookup
+        bl.parent_lookup_response::<BlockRequestState<Parent>>(
+            id_2,
+            peer_id,
+            Some(block.clone()),
+            D,
+            &cx,
+        );
+        bl.parent_lookup_response::<BlockRequestState<Parent>>(id_2, peer_id, None, D, &cx);
+        rig.expect_block_process(response_type);
+
+        // This could be associated with either lookup, and it should trigger a chain processing event.
+        if i + 2 == depth {
+            // one block was removed
+            bl.parent_block_processed(
+                chain_hash,
+                BlockError::BlockIsAlreadyKnown(block.canonical_root()).into(),
+                &mut cx,
+            );
+        } else {
+            bl.parent_block_processed(
+                chain_hash,
+                BlockError::ParentUnknown(RpcBlock::new_without_blobs(None, block.clone())).into(),
+                &mut cx,
+            );
+            bl.parent_block_processed(
+                chain_hash,
+                BlockError::ParentUnknown(RpcBlock::new_without_blobs(None, block)).into(),
+                &mut cx,
+            )
+        }
+    }
+
+    // Processing succeeds, now the rest of the chain should be sent for processing.
+    rig.expect_parent_chain_process();
+
+    // Check that one of the lookups is still present
+    assert_eq!(bl.parent_lookups.len(), 1);
+
+    // If the first lookup is still present, this is incorrect.
+    assert_eq!(
+        bl.parent_lookups.get(0).unwrap().current_parent_request.id,
+        2
+    );
 }
 
 mod deneb_only {

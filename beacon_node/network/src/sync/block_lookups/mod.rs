@@ -47,7 +47,7 @@ pub const SINGLE_BLOCK_LOOKUP_MAX_ATTEMPTS: u8 = 3;
 
 pub struct BlockLookups<T: BeaconChainTypes> {
     /// Parent chain lookups being downloaded.
-    parent_lookups: SmallVec<[ParentLookup<T>; 3]>,
+    pub(crate) parent_lookups: SmallVec<[ParentLookup<T>; 3]>,
 
     processing_parent_lookups: HashMap<Hash256, (Vec<Hash256>, SingleBlockLookup<Parent, T>)>,
 
