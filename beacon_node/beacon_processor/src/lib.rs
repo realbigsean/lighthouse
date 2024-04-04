@@ -53,6 +53,7 @@ use std::cmp;
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
 use std::future::Future;
+use std::hash::Hash;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -60,6 +61,7 @@ use std::time::Duration;
 use task_executor::TaskExecutor;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TrySendError;
+use types::blob_sidecar::BlobIdentifier;
 use types::{Attestation, Hash256, SignedAggregateAndProof, SubnetId};
 use types::{EthSpec, Slot};
 use work_reprocessing_queue::IgnoredRpcBlock;
@@ -387,16 +389,24 @@ impl<T> LifoQueue<T> {
     }
 }
 
+/// Marker trait for types that can be used as keys in the `DuplicateCache`.
+pub trait DuplicateCacheKey: Clone + PartialEq + Eq + Hash + Copy {}
+impl DuplicateCacheKey for Hash256 {}
+impl DuplicateCacheKey for BlobIdentifier {}
+
+pub type DuplicateBlockCache = DuplicateCache<Hash256>;
+pub type DuplicateBlobCache = DuplicateCache<BlobIdentifier>;
+
 /// A handle that sends a message on the provided channel to a receiver when it gets dropped.
 ///
 /// The receiver task is responsible for removing the provided `entry` from the `DuplicateCache`
 /// and perform any other necessary cleanup.
-pub struct DuplicateCacheHandle {
-    entry: Hash256,
-    cache: DuplicateCache,
+pub struct DuplicateCacheHandle<T: DuplicateCacheKey> {
+    entry: T,
+    cache: DuplicateCache<T>,
 }
 
-impl Drop for DuplicateCacheHandle {
+impl<T: DuplicateCacheKey> Drop for DuplicateCacheHandle<T> {
     fn drop(&mut self) {
         self.cache.remove(&self.entry);
     }
@@ -404,11 +414,11 @@ impl Drop for DuplicateCacheHandle {
 
 /// A simple  cache for detecting duplicate block roots across multiple threads.
 #[derive(Clone, Default)]
-pub struct DuplicateCache {
-    inner: Arc<Mutex<HashSet<Hash256>>>,
+pub struct DuplicateCache<T: DuplicateCacheKey> {
+    inner: Arc<Mutex<HashSet<T>>>,
 }
 
-impl DuplicateCache {
+impl<T: DuplicateCacheKey> DuplicateCache<T> {
     /// Checks if the given block_root exists and inserts it into the cache if
     /// it doesn't exist.
     ///
@@ -417,7 +427,7 @@ impl DuplicateCache {
     ///
     /// The handle removes the entry from the cache when it is dropped. This ensures that any unclean
     /// shutdowns in the worker tasks does not leave inconsistent state in the cache.
-    pub fn check_and_insert(&self, block_root: Hash256) -> Option<DuplicateCacheHandle> {
+    pub fn check_and_insert(&self, block_root: T) -> Option<DuplicateCacheHandle<T>> {
         let mut inner = self.inner.lock();
         if inner.insert(block_root) {
             Some(DuplicateCacheHandle {
@@ -430,7 +440,7 @@ impl DuplicateCache {
     }
 
     /// Remove the given block_root from the cache.
-    pub fn remove(&self, block_root: &Hash256) {
+    pub fn remove(&self, block_root: &T) {
         let mut inner = self.inner.lock();
         inner.remove(block_root);
     }

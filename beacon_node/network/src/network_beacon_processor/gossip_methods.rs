@@ -43,7 +43,7 @@ use beacon_processor::{
         QueuedAggregate, QueuedGossipBlock, QueuedLightClientUpdate, QueuedUnaggregate,
         ReprocessQueueMessage,
     },
-    DuplicateCache, GossipAggregatePackage, GossipAttestationPackage,
+    DuplicateBlockCache, GossipAggregatePackage, GossipAttestationPackage,
 };
 
 /// Set to `true` to introduce stricter penalties for peers who send some types of late consensus
@@ -811,7 +811,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         peer_client: Client,
         block: Arc<SignedBeaconBlock<T::EthSpec>>,
         reprocess_tx: mpsc::Sender<ReprocessQueueMessage>,
-        duplicate_cache: DuplicateCache,
+        duplicate_block_cache: DuplicateBlockCache,
         invalid_block_storage: InvalidBlockStorage,
         seen_duration: Duration,
     ) {
@@ -828,7 +828,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         {
             let block_root = gossip_verified_block.block_root;
 
-            if let Some(handle) = duplicate_cache.check_and_insert(block_root) {
+            if let Some(handle) = duplicate_block_cache.check_and_insert(block_root) {
                 self.process_gossip_verified_block(
                     peer_id,
                     gossip_verified_block,

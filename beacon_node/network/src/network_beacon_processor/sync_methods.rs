@@ -12,9 +12,10 @@ use beacon_chain::{
     validator_monitor::get_slot_delay_ms, AvailabilityProcessingStatus, BeaconChainError,
     BeaconChainTypes, BlockError, ChainSegmentResult, HistoricalBlockError, NotifyExecutionLayer,
 };
+use beacon_processor::DuplicateBlockCache;
 use beacon_processor::{
     work_reprocessing_queue::{QueuedRpcBlock, ReprocessQueueMessage},
-    AsyncFn, BlockingFn, DuplicateCache,
+    AsyncFn, BlockingFn,
 };
 use lighthouse_network::PeerAction;
 use slog::{debug, error, info, warn};
@@ -59,7 +60,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) -> AsyncFn {
         let process_fn = async move {
             let reprocess_tx = self.reprocess_tx.clone();
-            let duplicate_cache = self.duplicate_cache.clone();
+            let duplicate_cache = self.duplicate_block_cache.clone();
             self.process_rpc_block(
                 block_root,
                 block,
@@ -108,10 +109,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         seen_timestamp: Duration,
         process_type: BlockProcessType,
         reprocess_tx: mpsc::Sender<ReprocessQueueMessage>,
-        duplicate_cache: DuplicateCache,
+        duplicate_block_cache: DuplicateBlockCache,
     ) {
         // Check if the block is already being imported through another source
-        let Some(handle) = duplicate_cache.check_and_insert(block_root) else {
+        let Some(handle) = duplicate_block_cache.check_and_insert(block_root) else {
             debug!(
                 self.log,
                 "Gossip block is being processed";

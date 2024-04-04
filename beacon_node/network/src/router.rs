@@ -12,9 +12,8 @@ use crate::status::status_message;
 use crate::sync::manager::RequestId as SyncId;
 use crate::sync::SyncMessage;
 use beacon_chain::{BeaconChain, BeaconChainTypes};
-use beacon_processor::{
-    work_reprocessing_queue::ReprocessQueueMessage, BeaconProcessorSend, DuplicateCache,
-};
+use beacon_processor::DuplicateBlockCache;
+use beacon_processor::{work_reprocessing_queue::ReprocessQueueMessage, BeaconProcessorSend};
 use futures::prelude::*;
 use lighthouse_network::rpc::*;
 use lighthouse_network::{
@@ -102,7 +101,7 @@ impl<T: BeaconChainTypes> Router<T> {
 
         let network_beacon_processor = NetworkBeaconProcessor {
             beacon_processor_send,
-            duplicate_cache: DuplicateCache::default(),
+            duplicate_block_cache: DuplicateBlockCache::default(),
             chain: beacon_chain.clone(),
             network_tx: network_send.clone(),
             sync_tx: sync_send.clone(),

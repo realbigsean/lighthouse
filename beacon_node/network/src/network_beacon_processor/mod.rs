@@ -9,7 +9,7 @@ use beacon_chain::{
 use beacon_chain::{BeaconChainTypes, NotifyExecutionLayer};
 use beacon_processor::{
     work_reprocessing_queue::ReprocessQueueMessage, BeaconProcessorChannels, BeaconProcessorSend,
-    DuplicateCache, GossipAggregatePackage, GossipAttestationPackage, Work,
+    DuplicateBlockCache, DuplicateCache, GossipAggregatePackage, GossipAttestationPackage, Work,
     WorkEvent as BeaconWorkEvent,
 };
 use environment::null_logger;
@@ -53,7 +53,7 @@ pub enum InvalidBlockStorage {
 /// beacon processor.
 pub struct NetworkBeaconProcessor<T: BeaconChainTypes> {
     pub beacon_processor_send: BeaconProcessorSend<T::EthSpec>,
-    pub duplicate_cache: DuplicateCache,
+    pub duplicate_block_cache: DuplicateBlockCache,
     pub chain: Arc<BeaconChain<T>>,
     pub network_tx: mpsc::UnboundedSender<NetworkMessage<T::EthSpec>>,
     pub sync_tx: mpsc::UnboundedSender<SyncMessage<T::EthSpec>>,
@@ -178,7 +178,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let process_fn = async move {
             let reprocess_tx = processor.reprocess_tx.clone();
             let invalid_block_storage = processor.invalid_block_storage.clone();
-            let duplicate_cache = processor.duplicate_cache.clone();
+            let duplicate_cache = processor.duplicate_block_cache.clone();
             processor
                 .process_gossip_block(
                     message_id,
@@ -659,7 +659,7 @@ impl<E: EthSpec> NetworkBeaconProcessor<TestBeaconChainType<E>> {
 
         let network_beacon_processor = Self {
             beacon_processor_send: beacon_processor_tx,
-            duplicate_cache: DuplicateCache::default(),
+            duplicate_block_cache: DuplicateCache::default(),
             chain: harness.chain,
             network_tx,
             sync_tx,
