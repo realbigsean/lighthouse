@@ -1,3 +1,4 @@
+use crate::block_verification_types::RpcBlock;
 use crate::data_availability_checker::AvailableBlock;
 use crate::{errors::BeaconChainError as Error, metrics, BeaconChain, BeaconChainTypes};
 use itertools::Itertools;
@@ -8,9 +9,10 @@ use state_processing::{
 };
 use std::borrow::Cow;
 use std::iter;
+use std::sync::Arc;
 use std::time::Duration;
 use store::{chunked_vector::BlockRoots, AnchorInfo, BlobInfo, ChunkWriter, KeyValueStore};
-use types::{Hash256, Slot};
+use types::{Hash256, SignedBeaconBlock, Slot};
 
 /// Use a longer timeout on the pubkey cache.
 ///
@@ -59,7 +61,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// Return the number of blocks successfully imported.
     pub fn import_historical_block_batch(
         &self,
-        mut blocks: Vec<AvailableBlock<T::EthSpec>>,
+        mut blocks: Vec<RpcBlock<T::EthSpec>>,
     ) -> Result<usize, Error> {
         let anchor_info = self
             .store
@@ -69,7 +71,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         // Take all blocks with slots less than the oldest block slot.
         let num_relevant = blocks.partition_point(|available_block| {
-            available_block.block().slot() < anchor_info.oldest_block_slot
+            available_block.as_block().slot() < anchor_info.oldest_block_slot
         });
 
         let total_blocks = blocks.len();
@@ -108,7 +110,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         for available_block in blocks_to_import.into_iter().rev() {
             let (block_root, block, maybe_blobs) = available_block.deconstruct();
-
             if block_root != expected_block_root {
                 return Err(HistoricalBlockError::MismatchedBlockRoot {
                     block_root,

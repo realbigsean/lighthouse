@@ -596,18 +596,18 @@ pub fn signature_verify_chain_segment<T: BeaconChainTypes>(
 
     // unzip chain segment and verify kzg in bulk
     let (roots, blocks): (Vec<_>, Vec<_>) = chain_segment.into_iter().unzip();
-    let maybe_available_blocks = chain
+    chain
         .data_availability_checker
-        .verify_kzg_for_rpc_blocks(blocks)?;
+        .verify_kzg_for_rpc_blocks(blocks.clone())?;
     // zip it back up
     let mut signature_verified_blocks = roots
         .into_iter()
-        .zip(maybe_available_blocks)
-        .map(|(block_root, maybe_available_block)| {
-            let consensus_context = ConsensusContext::new(maybe_available_block.slot())
-                .set_current_block_root(block_root);
+        .zip(blocks)
+        .map(|(block_root, block)| {
+            let consensus_context =
+                ConsensusContext::new(block.slot()).set_current_block_root(block_root);
             SignatureVerifiedBlock {
-                block: maybe_available_block,
+                block: block.block_cloned(),
                 block_root,
                 parent: None,
                 consensus_context,
@@ -650,14 +650,14 @@ pub struct GossipVerifiedBlock<T: BeaconChainTypes> {
 /// A wrapper around a `SignedBeaconBlock` that indicates that all signatures (except the deposit
 /// signatures) have been verified.
 pub struct SignatureVerifiedBlock<T: BeaconChainTypes> {
-    block: MaybeAvailableBlock<T::EthSpec>,
+    block: Arc<SignedBeaconBlock<T::EthSpec>>,
     block_root: Hash256,
     parent: Option<PreProcessingSnapshot<T::EthSpec>>,
     consensus_context: ConsensusContext<T::EthSpec>,
 }
 
 /// Used to await the result of executing payload with a remote EE.
-type PayloadVerificationHandle<E> =
+pub type PayloadVerificationHandle<E> =
     JoinHandle<Option<Result<PayloadVerificationOutcome, BlockError<E>>>>;
 
 /// A wrapper around a `SignedBeaconBlock` that indicates that this block is fully verified and
@@ -673,9 +673,35 @@ type PayloadVerificationHandle<E> =
 /// due to finality or some other event. A `ExecutionPendingBlock` should be imported into the
 /// `BeaconChain` immediately after it is instantiated.
 pub struct ExecutionPendingBlock<T: BeaconChainTypes> {
-    pub block: MaybeAvailableBlock<T::EthSpec>,
+    pub block: Arc<SignedBeaconBlock<T::EthSpec>>,
     pub import_data: BlockImportData<T::EthSpec>,
     pub payload_verification_handle: PayloadVerificationHandle<T::EthSpec>,
+}
+
+impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
+    pub fn new(
+        block: Arc<SignedBeaconBlock<T::EthSpec>>,
+        import_data: BlockImportData<T::EthSpec>,
+        payload_verification_handle: PayloadVerificationHandle<T::EthSpec>,
+    ) -> Self {
+        Self {
+            block,
+            import_data,
+            payload_verification_handle,
+        }
+    }
+
+    pub fn as_block(&self) -> &SignedBeaconBlock<T::EthSpec> {
+        &self.block
+    }
+
+    pub fn num_blobs_expected(&self) -> usize {
+        self.block
+            .message()
+            .body()
+            .blob_kzg_commitments()
+            .map_or(0, |commitments| commitments.len())
+    }
 }
 
 pub trait IntoGossipVerifiedBlockContents<T: BeaconChainTypes>: Sized {
@@ -1030,10 +1056,13 @@ impl<T: BeaconChainTypes> SignatureVerifiedBlock<T> {
     ///
     /// Returns an error if the block is invalid, or if the block was unable to be verified.
     pub fn new(
-        block: MaybeAvailableBlock<T::EthSpec>,
+        block: RpcBlock<T::EthSpec>,
         block_root: Hash256,
         chain: &BeaconChain<T>,
     ) -> Result<Self, BlockError<T::EthSpec>> {
+        chain
+            .data_availability_checker
+            .verify_kzg_for_rpc_block(block.clone())?;
         // Ensure the block is the correct structure for the fork at `block.slot()`.
         block
             .as_block()
@@ -1064,7 +1093,7 @@ impl<T: BeaconChainTypes> SignatureVerifiedBlock<T> {
         if signature_verifier.verify().is_ok() {
             Ok(Self {
                 consensus_context,
-                block,
+                block: block.block_cloned(),
                 block_root,
                 parent: Some(parent),
             })
@@ -1075,7 +1104,7 @@ impl<T: BeaconChainTypes> SignatureVerifiedBlock<T> {
 
     /// As for `new` above but producing `BlockSlashInfo`.
     pub fn check_slashable(
-        block: MaybeAvailableBlock<T::EthSpec>,
+        block: RpcBlock<T::EthSpec>,
         block_root: Hash256,
         chain: &BeaconChain<T>,
     ) -> Result<Self, BlockSlashInfo<BlockError<T::EthSpec>>> {
@@ -1115,10 +1144,7 @@ impl<T: BeaconChainTypes> SignatureVerifiedBlock<T> {
 
         if signature_verifier.verify().is_ok() {
             Ok(Self {
-                block: MaybeAvailableBlock::AvailabilityPending {
-                    block_root: from.block_root,
-                    block,
-                },
+                block,
                 block_root: from.block_root,
                 parent: Some(parent),
                 consensus_context,
@@ -1175,7 +1201,7 @@ impl<T: BeaconChainTypes> IntoExecutionPendingBlock<T> for SignatureVerifiedBloc
     }
 
     fn block_cloned(&self) -> Arc<SignedBeaconBlock<T::EthSpec>> {
-        self.block.block_cloned()
+        self.block.clone()
     }
 }
 
@@ -1191,17 +1217,12 @@ impl<T: BeaconChainTypes> IntoExecutionPendingBlock<T> for Arc<SignedBeaconBlock
         // Perform an early check to prevent wasting time on irrelevant blocks.
         let block_root = check_block_relevancy(&self, block_root, chain)
             .map_err(|e| BlockSlashInfo::SignatureNotChecked(self.signed_block_header(), e))?;
-        let maybe_available = chain
-            .data_availability_checker
-            .verify_kzg_for_rpc_block(RpcBlock::new_without_blobs(Some(block_root), self.clone()))
-            .map_err(|e| {
-                BlockSlashInfo::SignatureNotChecked(
-                    self.signed_block_header(),
-                    BlockError::AvailabilityCheck(e),
-                )
-            })?;
-        SignatureVerifiedBlock::check_slashable(maybe_available, block_root, chain)?
-            .into_execution_pending_block_slashable(block_root, chain, notify_execution_layer)
+        SignatureVerifiedBlock::check_slashable(
+            RpcBlock::new_without_blobs(Some(block_root), self),
+            block_root,
+            chain,
+        )?
+        .into_execution_pending_block_slashable(block_root, chain, notify_execution_layer)
     }
 
     fn block(&self) -> &SignedBeaconBlock<T::EthSpec> {
@@ -1225,16 +1246,7 @@ impl<T: BeaconChainTypes> IntoExecutionPendingBlock<T> for RpcBlock<T::EthSpec> 
         // Perform an early check to prevent wasting time on irrelevant blocks.
         let block_root = check_block_relevancy(self.as_block(), block_root, chain)
             .map_err(|e| BlockSlashInfo::SignatureNotChecked(self.signed_block_header(), e))?;
-        let maybe_available = chain
-            .data_availability_checker
-            .verify_kzg_for_rpc_block(self.clone())
-            .map_err(|e| {
-                BlockSlashInfo::SignatureNotChecked(
-                    self.signed_block_header(),
-                    BlockError::AvailabilityCheck(e),
-                )
-            })?;
-        SignatureVerifiedBlock::check_slashable(maybe_available, block_root, chain)?
+        SignatureVerifiedBlock::check_slashable(self, block_root, chain)?
             .into_execution_pending_block_slashable(block_root, chain, notify_execution_layer)
     }
 
@@ -1256,7 +1268,7 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
     ///
     /// Returns an error if the block is invalid, or if the block was unable to be verified.
     pub fn from_signature_verified_components(
-        block: MaybeAvailableBlock<T::EthSpec>,
+        block: Arc<SignedBeaconBlock<T::EthSpec>>,
         block_root: Hash256,
         parent: PreProcessingSnapshot<T::EthSpec>,
         mut consensus_context: ConsensusContext<T::EthSpec>,
@@ -1313,7 +1325,7 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
         // with the payload verification.
         let payload_notifier = PayloadNotifier::new(
             chain.clone(),
-            block.block_cloned(),
+            block.clone(),
             &parent.pre_state,
             notify_execution_layer,
         )?;

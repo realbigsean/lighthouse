@@ -1,14 +1,12 @@
 use crate::blob_verification::{verify_kzg_for_blob_list, GossipVerifiedBlob, KzgVerifiedBlobList};
-use crate::block_verification_types::{
-    AvailabilityPendingExecutedBlock, AvailableExecutedBlock, RpcBlock,
-};
+use crate::block_verification_types::{AvailableExecutionPendingBlock, RpcBlock};
 pub use crate::data_availability_checker::availability_view::{
     AvailabilityView, GetCommitment, GetCommitments,
 };
 pub use crate::data_availability_checker::child_components::ChildComponents;
 use crate::data_availability_checker::overflow_lru_cache::OverflowLRUCache;
 use crate::data_availability_checker::processing_cache::ProcessingCache;
-use crate::{BeaconChain, BeaconChainTypes, BeaconStore};
+use crate::{BeaconChain, BeaconChainTypes, BeaconStore, ExecutionPendingBlock};
 use kzg::Kzg;
 use parking_lot::RwLock;
 pub use processing_cache::ProcessingComponents;
@@ -62,19 +60,20 @@ pub struct DataAvailabilityChecker<T: BeaconChainTypes> {
 ///
 /// Indicates if the block is fully `Available` or if we need blobs or blocks
 ///  to "complete" the requirements for an `AvailableBlock`.
-#[derive(PartialEq)]
-pub enum Availability<E: EthSpec> {
+pub enum Availability<T: BeaconChainTypes> {
     MissingComponents(Hash256),
-    Available(Box<AvailableExecutedBlock<E>>),
+    Available(Box<AvailableExecutionPendingBlock<T>>),
 }
 
-impl<E: EthSpec> Debug for Availability<E> {
+impl<T: BeaconChainTypes> Debug for Availability<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::MissingComponents(block_root) => {
                 write!(f, "MissingComponents({})", block_root)
             }
-            Self::Available(block) => write!(f, "Available({:?})", block.import_data.block_root),
+            Self::Available(block) => {
+                write!(f, "Available({:?})", block.block.import_data.block_root)
+            }
         }
     }
 }
@@ -177,7 +176,7 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
         &self,
         block_root: Hash256,
         blobs: FixedBlobSidecarList<T::EthSpec>,
-    ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
+    ) -> Result<Availability<T>, AvailabilityCheckError> {
         let Some(kzg) = self.kzg.as_ref() else {
             return Err(AvailabilityCheckError::KzgNotInitialized);
         };
@@ -197,19 +196,19 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
     pub fn put_gossip_blob(
         &self,
         gossip_blob: GossipVerifiedBlob<T>,
-    ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
+    ) -> Result<Availability<T>, AvailabilityCheckError> {
         self.availability_cache
             .put_kzg_verified_blobs(gossip_blob.block_root(), vec![gossip_blob.into_inner()])
     }
 
     /// Check if we have all the blobs for a block. Returns `Availability` which has information
     /// about whether all components have been received or more are required.
-    pub fn put_pending_executed_block(
+    pub fn put_execution_pending_block(
         &self,
-        executed_block: AvailabilityPendingExecutedBlock<T::EthSpec>,
-    ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
+        executed_block: ExecutionPendingBlock<T>,
+    ) -> Result<Availability<T>, AvailabilityCheckError> {
         self.availability_cache
-            .put_pending_executed_block(executed_block)
+            .put_execution_pending_block(executed_block)
     }
 
     /// Verifies kzg commitments for an RpcBlock, returns a `MaybeAvailableBlock` that may
@@ -220,39 +219,21 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
     pub fn verify_kzg_for_rpc_block(
         &self,
         block: RpcBlock<T::EthSpec>,
-    ) -> Result<MaybeAvailableBlock<T::EthSpec>, AvailabilityCheckError> {
+    ) -> Result<(), AvailabilityCheckError> {
         let (block_root, block, blobs) = block.deconstruct();
         match blobs {
             None => {
                 if self.blobs_required_for_block(&block) {
-                    Ok(MaybeAvailableBlock::AvailabilityPending { block_root, block })
-                } else {
-                    Ok(MaybeAvailableBlock::Available(AvailableBlock {
-                        block_root,
-                        block,
-                        blobs: None,
-                    }))
+                    //cache
                 }
             }
             Some(blob_list) => {
-                let verified_blobs = if self.blobs_required_for_block(&block) {
-                    let kzg = self
-                        .kzg
-                        .as_ref()
-                        .ok_or(AvailabilityCheckError::KzgNotInitialized)?;
-                    verify_kzg_for_blob_list(blob_list.iter(), kzg)
-                        .map_err(AvailabilityCheckError::Kzg)?;
-                    Some(blob_list)
-                } else {
-                    None
-                };
-                Ok(MaybeAvailableBlock::Available(AvailableBlock {
-                    block_root,
-                    block,
-                    blobs: verified_blobs,
-                }))
+                if self.blobs_required_for_block(&block) {
+                    //cache
+                }
             }
         }
+        Ok(())
     }
 
     /// Checks if a vector of blocks are available. Returns a vector of `MaybeAvailableBlock`
@@ -264,8 +245,7 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
     pub fn verify_kzg_for_rpc_blocks(
         &self,
         blocks: Vec<RpcBlock<T::EthSpec>>,
-    ) -> Result<Vec<MaybeAvailableBlock<T::EthSpec>>, AvailabilityCheckError> {
-        let mut results = Vec::with_capacity(blocks.len());
+    ) -> Result<(), AvailabilityCheckError> {
         let all_blobs: BlobSidecarList<T::EthSpec> = blocks
             .iter()
             .filter(|block| self.blobs_required_for_block(block.as_block()))
@@ -289,32 +269,18 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
             match blobs {
                 None => {
                     if self.blobs_required_for_block(&block) {
-                        results.push(MaybeAvailableBlock::AvailabilityPending { block_root, block })
-                    } else {
-                        results.push(MaybeAvailableBlock::Available(AvailableBlock {
-                            block_root,
-                            block,
-                            blobs: None,
-                        }))
+                        // cache
                     }
                 }
                 Some(blob_list) => {
-                    let verified_blobs = if self.blobs_required_for_block(&block) {
-                        Some(blob_list)
-                    } else {
-                        None
-                    };
-                    // already verified kzg for all blobs
-                    results.push(MaybeAvailableBlock::Available(AvailableBlock {
-                        block_root,
-                        block,
-                        blobs: verified_blobs,
-                    }))
+                    if self.blobs_required_for_block(&block) {
+                        // cache
+                    }
                 }
             }
         }
 
-        Ok(results)
+        Ok(())
     }
 
     /// Determines the blob requirements for a block. If the block is pre-deneb, no blobs are required.
@@ -513,9 +479,10 @@ async fn availability_cache_maintenance_service<T: BeaconChainTypes>(
 /// A fully available block that is ready to be imported into fork choice.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AvailableBlock<E: EthSpec> {
-    block_root: Hash256,
-    block: Arc<SignedBeaconBlock<E>>,
-    blobs: Option<BlobSidecarList<E>>,
+    //TODO(sean) private fields?
+    pub block_root: Hash256,
+    pub block: Arc<SignedBeaconBlock<E>>,
+    pub blobs: Option<BlobSidecarList<E>>,
 }
 
 impl<E: EthSpec> AvailableBlock<E> {
@@ -572,6 +539,12 @@ pub enum MaybeAvailableBlock<E: EthSpec> {
 }
 
 impl<E: EthSpec> MaybeAvailableBlock<E> {
+    pub fn as_block(&self) -> &SignedBeaconBlock<E> {
+        match self {
+            Self::Available(block) => block.block(),
+            Self::AvailabilityPending { block, .. } => &block,
+        }
+    }
     pub fn block_cloned(&self) -> Arc<SignedBeaconBlock<E>> {
         match self {
             Self::Available(block) => block.block_cloned(),

@@ -249,7 +249,7 @@ pub mod tests {
     use crate::block_verification_types::BlockImportData;
     use crate::eth1_finalization_cache::Eth1FinalizationData;
     use crate::test_utils::{generate_rand_block_and_blobs, NumBlobs};
-    use crate::AvailabilityPendingExecutedBlock;
+    use crate::ExecutionPendingBlock;
     use crate::PayloadVerificationOutcome;
     use fork_choice::PayloadVerificationStatus;
     use rand::rngs::StdRng;
@@ -351,7 +351,14 @@ pub mod tests {
                 .collect::<Vec<_>>(),
         );
         let dummy_parent = block.clone_as_blinded();
-        let block = AvailabilityPendingExecutedBlock {
+
+        let payload_verification_handle = async {
+            Ok(Some(PayloadVerificationOutcome {
+                payload_verification_status: PayloadVerificationStatus::Verified,
+                is_valid_merge_transition_block: false,
+            }))
+        };
+        let block = ExecutionPendingBlock {
             block: Arc::new(block),
             import_data: BlockImportData {
                 block_root: Default::default(),
@@ -364,10 +371,7 @@ pub mod tests {
                 confirmed_state_roots: vec![],
                 consensus_context: ConsensusContext::new(Slot::new(0)),
             },
-            payload_verification_outcome: PayloadVerificationOutcome {
-                payload_verification_status: PayloadVerificationStatus::Verified,
-                is_valid_merge_transition_block: false,
-            },
+            payload_verification_handle,
         };
         (block.into(), blobs, invalid_blobs)
     }

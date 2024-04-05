@@ -3,7 +3,8 @@ use crate::block_verification::BlockError;
 use crate::data_availability_checker::AvailabilityCheckError;
 pub use crate::data_availability_checker::{AvailableBlock, MaybeAvailableBlock};
 use crate::eth1_finalization_cache::Eth1FinalizationData;
-use crate::{get_block_root, GossipVerifiedBlock, PayloadVerificationOutcome};
+pub use crate::{block_verification::PayloadVerificationHandle, ExecutionPendingBlock};
+use crate::{get_block_root, BeaconChainTypes, GossipVerifiedBlock, PayloadVerificationOutcome};
 use derivative::Derivative;
 use ssz_types::VariableList;
 use state_processing::ConsensusContext;
@@ -169,85 +170,21 @@ impl<E: EthSpec> RpcBlock<E> {
     }
 }
 
-/// A block that has gone through all pre-deneb block processing checks including block processing
-/// and execution by an EL client. This block hasn't necessarily completed data availability checks.
-///
-///
-/// It contains 2 variants:
-/// 1. `Available`: This block has been executed and also contains all data to consider it a
-///    fully available block. i.e. for post-deneb, this implies that this contains all the
-///    required blobs.
-/// 2. `AvailabilityPending`: This block hasn't received all required blobs to consider it a
-///    fully available block.
-pub enum ExecutedBlock<E: EthSpec> {
-    Available(AvailableExecutedBlock<E>),
-    AvailabilityPending(AvailabilityPendingExecutedBlock<E>),
-}
-
-impl<E: EthSpec> ExecutedBlock<E> {
-    pub fn new(
-        block: MaybeAvailableBlock<E>,
-        import_data: BlockImportData<E>,
-        payload_verification_outcome: PayloadVerificationOutcome,
-    ) -> Self {
-        match block {
-            MaybeAvailableBlock::Available(available_block) => {
-                Self::Available(AvailableExecutedBlock::new(
-                    available_block,
-                    import_data,
-                    payload_verification_outcome,
-                ))
-            }
-            MaybeAvailableBlock::AvailabilityPending {
-                block_root: _,
-                block: pending_block,
-            } => Self::AvailabilityPending(AvailabilityPendingExecutedBlock::new(
-                pending_block,
-                import_data,
-                payload_verification_outcome,
-            )),
-        }
-    }
-
-    pub fn as_block(&self) -> &SignedBeaconBlock<E> {
-        match self {
-            Self::Available(available) => available.block.block(),
-            Self::AvailabilityPending(pending) => &pending.block,
-        }
-    }
-
-    pub fn block_root(&self) -> Hash256 {
-        match self {
-            ExecutedBlock::AvailabilityPending(pending) => pending.import_data.block_root,
-            ExecutedBlock::Available(available) => available.import_data.block_root,
-        }
-    }
-}
-
 /// A block that has completed all pre-deneb block processing checks including verification
 /// by an EL client **and** has all requisite blob data to be imported into fork choice.
-#[derive(PartialEq)]
-pub struct AvailableExecutedBlock<E: EthSpec> {
-    pub block: AvailableBlock<E>,
-    pub import_data: BlockImportData<E>,
-    pub payload_verification_outcome: PayloadVerificationOutcome,
+pub struct AvailableExecutionPendingBlock<T: BeaconChainTypes> {
+    pub block: ExecutionPendingBlock<T>,
+    pub blobs: BlobSidecarList<T::EthSpec>,
 }
 
-impl<E: EthSpec> AvailableExecutedBlock<E> {
-    pub fn new(
-        block: AvailableBlock<E>,
-        import_data: BlockImportData<E>,
-        payload_verification_outcome: PayloadVerificationOutcome,
-    ) -> Self {
-        Self {
-            block,
-            import_data,
-            payload_verification_outcome,
-        }
+impl<T: BeaconChainTypes> AvailableExecutionPendingBlock<T> {
+    pub fn new(block: ExecutionPendingBlock<T>, blobs: BlobSidecarList<T::EthSpec>) -> Self {
+        Self { block, blobs }
     }
 
     pub fn get_all_blob_ids(&self) -> Vec<BlobIdentifier> {
         let num_blobs_expected = self
+            .block
             .block
             .message()
             .body()
@@ -256,46 +193,11 @@ impl<E: EthSpec> AvailableExecutedBlock<E> {
         let mut blob_ids = Vec::with_capacity(num_blobs_expected);
         for i in 0..num_blobs_expected {
             blob_ids.push(BlobIdentifier {
-                block_root: self.import_data.block_root,
+                block_root: self.block.import_data.block_root,
                 index: i as u64,
             });
         }
         blob_ids
-    }
-}
-
-/// A block that has completed all pre-deneb block processing checks, verification
-/// by an EL client but does not have all requisite blob data to get imported into
-/// fork choice.
-pub struct AvailabilityPendingExecutedBlock<E: EthSpec> {
-    pub block: Arc<SignedBeaconBlock<E>>,
-    pub import_data: BlockImportData<E>,
-    pub payload_verification_outcome: PayloadVerificationOutcome,
-}
-
-impl<E: EthSpec> AvailabilityPendingExecutedBlock<E> {
-    pub fn new(
-        block: Arc<SignedBeaconBlock<E>>,
-        import_data: BlockImportData<E>,
-        payload_verification_outcome: PayloadVerificationOutcome,
-    ) -> Self {
-        Self {
-            block,
-            import_data,
-            payload_verification_outcome,
-        }
-    }
-
-    pub fn as_block(&self) -> &SignedBeaconBlock<E> {
-        &self.block
-    }
-
-    pub fn num_blobs_expected(&self) -> usize {
-        self.block
-            .message()
-            .body()
-            .blob_kzg_commitments()
-            .map_or(0, |commitments| commitments.len())
     }
 }
 

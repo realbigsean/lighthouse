@@ -78,8 +78,6 @@ pub use block_verification::{
     IntoExecutionPendingBlock, IntoGossipVerifiedBlockContents, PayloadVerificationOutcome,
     PayloadVerificationStatus,
 };
-pub use block_verification_types::AvailabilityPendingExecutedBlock;
-pub use block_verification_types::ExecutedBlock;
 pub use canonical_head::{CachedHead, CanonicalHead, CanonicalHeadRwLock};
 pub use eth1_chain::{Eth1Chain, Eth1ChainBackend};
 pub use events::ServerSentEventHandler;

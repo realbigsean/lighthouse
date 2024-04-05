@@ -16,12 +16,13 @@ use crate::block_verification::{
     GossipVerifiedBlock, IntoExecutionPendingBlock,
 };
 use crate::block_verification_types::{
-    AsBlock, AvailableExecutedBlock, BlockImportData, ExecutedBlock, RpcBlock,
+    AsBlock, AvailableExecutionPendingBlock, BlockImportData, RpcBlock,
 };
 pub use crate::canonical_head::CanonicalHead;
 use crate::chain_config::ChainConfig;
 use crate::data_availability_checker::{
     Availability, AvailabilityCheckError, AvailableBlock, DataAvailabilityChecker,
+    MaybeAvailableBlock,
 };
 use crate::early_attester_cache::EarlyAttesterCache;
 use crate::errors::{BeaconChainError as Error, BlockProductionError};
@@ -69,8 +70,7 @@ use crate::validator_monitor::{
 };
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::{
-    kzg_utils, metrics, AvailabilityPendingExecutedBlock, BeaconChainError, BeaconForkChoiceStore,
-    BeaconSnapshot, CachedHead,
+    kzg_utils, metrics, BeaconChainError, BeaconForkChoiceStore, BeaconSnapshot, CachedHead,
 };
 use eth2::types::{EventKind, SseBlobSidecar, SseBlock, SseExtendedPayloadAttributes};
 use execution_layer::{
@@ -3024,14 +3024,16 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 notify_execution_layer,
             )?;
             publish_fn()?;
-            let executed_block = chain.into_executed_block(execution_pending).await?;
-            match executed_block {
-                ExecutedBlock::Available(block) => {
-                    self.import_available_block(Box::new(block)).await
-                }
-                ExecutedBlock::AvailabilityPending(block) => {
-                    self.check_block_availability_and_import(block).await
-                }
+
+            let availability = self
+                .data_availability_checker
+                .put_execution_pending_block(execution_pending)?;
+
+            match availability {
+                Availability::Available(block) => self.clone().into_executed_block(block).await,
+                Availability::MissingComponents(block_root) => Ok(
+                    AvailabilityProcessingStatus::MissingComponents(block_slot, block_root),
+                ),
             }
         };
 
@@ -3095,15 +3097,16 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// get a fully `ExecutedBlock`
     ///
     /// An error is returned if the verification handle couldn't be awaited.
-    pub async fn into_executed_block(
+    async fn into_executed_block(
         self: Arc<Self>,
-        execution_pending_block: ExecutionPendingBlock<T>,
-    ) -> Result<ExecutedBlock<T::EthSpec>, BlockError<T::EthSpec>> {
+        execution_pending_block: Box<AvailableExecutionPendingBlock<T>>,
+    ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
+        let AvailableExecutionPendingBlock { block, blobs } = *execution_pending_block;
         let ExecutionPendingBlock {
             block,
             import_data,
             payload_verification_handle,
-        } = execution_pending_block;
+        } = block;
 
         let payload_verification_outcome = payload_verification_handle
             .await
@@ -3139,25 +3142,55 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                     .into_root()
             );
         }
-        Ok(ExecutedBlock::new(
+
+        let BlockImportData {
+            block_root,
+            state,
+            parent_block,
+            parent_eth1_finalization_data,
+            confirmed_state_roots,
+            consensus_context,
+        } = import_data;
+
+        let available_block = AvailableBlock {
+            block_root,
             block,
-            import_data,
-            payload_verification_outcome,
-        ))
+            //TODO(sean) should this be an option
+            blobs: Some(blobs),
+        };
+
+        // import
+        let chain = self.clone();
+        let block_root = self
+            .spawn_blocking_handle(
+                move || {
+                    chain.import_block(
+                        available_block,
+                        block_root,
+                        state,
+                        confirmed_state_roots,
+                        payload_verification_outcome.payload_verification_status,
+                        parent_block,
+                        parent_eth1_finalization_data,
+                        consensus_context,
+                    )
+                },
+                "payload_verification_handle",
+            )
+            .await??;
+        Ok(AvailabilityProcessingStatus::Imported(block_root))
     }
 
     /* Import methods */
 
-    /// Checks if the block is available, and imports immediately if so, otherwise caches the block
-    /// in the data availability checker.
-    async fn check_block_availability_and_import(
+    async fn put_execution_pending_block(
         self: &Arc<Self>,
-        block: AvailabilityPendingExecutedBlock<T::EthSpec>,
+        block: ExecutionPendingBlock<T>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
         let slot = block.block.slot();
         let availability = self
             .data_availability_checker
-            .put_pending_executed_block(block)?;
+            .put_execution_pending_block(block)?;
         self.process_availability(slot, availability).await
     }
 
@@ -3221,62 +3254,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     async fn process_availability(
         self: &Arc<Self>,
         slot: Slot,
-        availability: Availability<T::EthSpec>,
+        availability: Availability<T>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
-        match availability {
-            Availability::Available(block) => {
-                // This is the time since start of the slot where all the components of the block have become available
-                let delay =
-                    get_slot_delay_ms(timestamp_now(), block.block.slot(), &self.slot_clock);
-                metrics::observe_duration(&metrics::BLOCK_AVAILABILITY_DELAY, delay);
-                // Block is fully available, import into fork choice
-                self.import_available_block(block).await
-            }
-            Availability::MissingComponents(block_root) => Ok(
-                AvailabilityProcessingStatus::MissingComponents(slot, block_root),
-            ),
-        }
-    }
-
-    pub async fn import_available_block(
-        self: &Arc<Self>,
-        block: Box<AvailableExecutedBlock<T::EthSpec>>,
-    ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
-        let AvailableExecutedBlock {
-            block,
-            import_data,
-            payload_verification_outcome,
-        } = *block;
-
-        let BlockImportData {
-            block_root,
-            state,
-            parent_block,
-            parent_eth1_finalization_data,
-            confirmed_state_roots,
-            consensus_context,
-        } = import_data;
-
-        // import
-        let chain = self.clone();
-        let block_root = self
-            .spawn_blocking_handle(
-                move || {
-                    chain.import_block(
-                        block,
-                        block_root,
-                        state,
-                        confirmed_state_roots,
-                        payload_verification_outcome.payload_verification_status,
-                        parent_block,
-                        parent_eth1_finalization_data,
-                        consensus_context,
-                    )
-                },
-                "payload_verification_handle",
-            )
-            .await??;
-        Ok(AvailabilityProcessingStatus::Imported(block_root))
+        todo!()
     }
 
     /// Accepts a fully-verified and available block and imports it into the chain without performing any

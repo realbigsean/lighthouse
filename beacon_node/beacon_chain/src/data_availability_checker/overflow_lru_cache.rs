@@ -31,7 +31,7 @@ use super::state_lru_cache::{DietAvailabilityPendingExecutedBlock, StateLRUCache
 use crate::beacon_chain::BeaconStore;
 use crate::blob_verification::KzgVerifiedBlob;
 use crate::block_verification_types::{
-    AvailabilityPendingExecutedBlock, AvailableBlock, AvailableExecutedBlock,
+    AvailableBlock, AvailableExecutionPendingBlock, ExecutionPendingBlock,
 };
 use crate::data_availability_checker::availability_view::AvailabilityView;
 use crate::data_availability_checker::{Availability, AvailabilityCheckError};
@@ -67,57 +67,6 @@ impl<E: EthSpec> PendingComponents<E> {
         }
     }
 
-    /// Verifies an `SignedBeaconBlock` against a set of KZG verified blobs.
-    /// This does not check whether a block *should* have blobs, these checks should have been
-    /// completed when producing the `AvailabilityPendingBlock`.
-    ///
-    /// WARNING: This function can potentially take a lot of time if the state needs to be
-    /// reconstructed from disk. Ensure you are not holding any write locks while calling this.
-    pub fn make_available<R>(self, recover: R) -> Result<Availability<E>, AvailabilityCheckError>
-    where
-        R: FnOnce(
-            DietAvailabilityPendingExecutedBlock<E>,
-        ) -> Result<AvailabilityPendingExecutedBlock<E>, AvailabilityCheckError>,
-    {
-        let Self {
-            block_root,
-            verified_blobs,
-            executed_block,
-        } = self;
-
-        let Some(diet_executed_block) = executed_block else {
-            return Err(AvailabilityCheckError::Unexpected);
-        };
-        let num_blobs_expected = diet_executed_block.num_blobs_expected();
-        let Some(verified_blobs) = verified_blobs
-            .into_iter()
-            .cloned()
-            .map(|b| b.map(|b| b.to_blob()))
-            .take(num_blobs_expected)
-            .collect::<Option<Vec<_>>>()
-        else {
-            return Err(AvailabilityCheckError::Unexpected);
-        };
-        let verified_blobs = VariableList::new(verified_blobs)?;
-
-        let executed_block = recover(diet_executed_block)?;
-
-        let AvailabilityPendingExecutedBlock {
-            block,
-            import_data,
-            payload_verification_outcome,
-        } = executed_block;
-
-        let available_block = AvailableBlock {
-            block_root,
-            block,
-            blobs: Some(verified_blobs),
-        };
-        Ok(Availability::Available(Box::new(
-            AvailableExecutedBlock::new(available_block, import_data, payload_verification_outcome),
-        )))
-    }
-
     pub fn epoch(&self) -> Option<Epoch> {
         self.executed_block
             .as_ref()
@@ -136,6 +85,50 @@ impl<E: EthSpec> PendingComponents<E> {
                 None
             })
     }
+}
+
+/// Verifies an `SignedBeaconBlock` against a set of KZG verified blobs.
+/// This does not check whether a block *should* have blobs, these checks should have been
+/// completed when producing the `AvailabilityPendingBlock`.
+///
+/// WARNING: This function can potentially take a lot of time if the state needs to be
+/// reconstructed from disk. Ensure you are not holding any write locks while calling this.
+pub fn make_available<R, T>(
+    components: PendingComponents<T::EthSpec>,
+    recover: R,
+) -> Result<Availability<T>, AvailabilityCheckError>
+where
+    R: FnOnce(
+        DietAvailabilityPendingExecutedBlock<T::EthSpec>,
+    ) -> Result<ExecutionPendingBlock<T>, AvailabilityCheckError>,
+    T: BeaconChainTypes,
+{
+    let PendingComponents {
+        block_root,
+        verified_blobs,
+        executed_block,
+    } = components;
+
+    let Some(diet_executed_block) = executed_block else {
+        return Err(AvailabilityCheckError::Unexpected);
+    };
+    let num_blobs_expected = diet_executed_block.num_blobs_expected();
+    let Some(verified_blobs) = verified_blobs
+        .into_iter()
+        .cloned()
+        .map(|b| b.map(|b| b.to_blob()))
+        .take(num_blobs_expected)
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Err(AvailabilityCheckError::Unexpected);
+    };
+    let verified_blobs = VariableList::new(verified_blobs)?;
+
+    let block = recover(diet_executed_block)?;
+
+    Ok(Availability::Available(Box::new(
+        AvailableExecutionPendingBlock::new(block, verified_blobs),
+    )))
 }
 
 /// Blocks and blobs are stored in the database sequentially so that it's
@@ -429,7 +422,7 @@ impl<T: BeaconChainTypes> OverflowLRUCache<T> {
         &self,
         block_root: Hash256,
         kzg_verified_blobs: I,
-    ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
+    ) -> Result<Availability<T>, AvailabilityCheckError> {
         let mut fixed_blobs = FixedVector::default();
 
         for blob in kzg_verified_blobs {
@@ -451,7 +444,7 @@ impl<T: BeaconChainTypes> OverflowLRUCache<T> {
         if pending_components.is_available() {
             // No need to hold the write lock anymore
             drop(write_lock);
-            pending_components.make_available(|diet_block| {
+            make_available(pending_components, |diet_block| {
                 self.state_cache.recover_pending_executed_block(diet_block)
             })
         } else {
@@ -460,16 +453,16 @@ impl<T: BeaconChainTypes> OverflowLRUCache<T> {
                 pending_components,
                 &self.overflow_store,
             )?;
-            Ok(Availability::MissingComponents(block_root))
+            Ok(Availability::<T>::MissingComponents(block_root))
         }
     }
 
     /// Check if we have all the blobs for a block. If we do, return the Availability variant that
     /// triggers import of the block.
-    pub fn put_pending_executed_block(
+    pub fn put_execution_pending_block(
         &self,
-        executed_block: AvailabilityPendingExecutedBlock<T::EthSpec>,
-    ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
+        executed_block: ExecutionPendingBlock<T>,
+    ) -> Result<Availability<T>, AvailabilityCheckError> {
         let mut write_lock = self.critical.write();
         let block_root = executed_block.import_data.block_root;
 
@@ -490,7 +483,7 @@ impl<T: BeaconChainTypes> OverflowLRUCache<T> {
         if pending_components.is_available() {
             // No need to hold the write lock anymore
             drop(write_lock);
-            pending_components.make_available(|diet_block| {
+            make_available(pending_components, |diet_block| {
                 self.state_cache.recover_pending_executed_block(diet_block)
             })
         } else {
@@ -499,7 +492,7 @@ impl<T: BeaconChainTypes> OverflowLRUCache<T> {
                 pending_components,
                 &self.overflow_store,
             )?;
-            Ok(Availability::MissingComponents(block_root))
+            Ok(Availability::<T>::MissingComponents(block_root))
         }
     }
 
@@ -893,16 +886,16 @@ mod test {
         }
     }
 
-    async fn availability_pending_block<E, Hot, Cold>(
-        harness: &BeaconChainHarness<BaseHarnessType<E, Hot, Cold>>,
+    async fn availability_pending_block<T, Hot, Cold>(
+        harness: &BeaconChainHarness<BaseHarnessType<T::EthSpec, Hot, Cold>>,
     ) -> (
-        AvailabilityPendingExecutedBlock<E>,
-        Vec<GossipVerifiedBlob<BaseHarnessType<E, Hot, Cold>>>,
+        ExecutionPendingBlock<T>,
+        Vec<GossipVerifiedBlob<BaseHarnessType<T::EthSpec, Hot, Cold>>>,
     )
     where
-        E: EthSpec,
-        Hot: ItemStore<E>,
-        Cold: ItemStore<E>,
+        T: BeaconChainTypes,
+        Hot: ItemStore<T::EthSpec>,
+        Cold: ItemStore<T::EthSpec>,
     {
         let chain = &harness.chain;
         let log = chain.log.clone();
@@ -961,8 +954,8 @@ mod test {
         };
 
         let slot = block.slot();
-        let consensus_context = ConsensusContext::<E>::new(slot);
-        let import_data: BlockImportData<E> = BlockImportData {
+        let consensus_context = ConsensusContext::<T::EthSpec>::new(slot);
+        let import_data: BlockImportData<T::EthSpec> = BlockImportData {
             block_root,
             state,
             parent_block,
@@ -976,13 +969,14 @@ mod test {
             is_valid_merge_transition_block: false,
         };
 
-        let availability_pending_block = AvailabilityPendingExecutedBlock {
-            block,
-            import_data,
-            payload_verification_outcome,
-        };
+        // let availability_pending_block = ExecutionPendingBlock {
+        //     block,
+        //     import_data,
+        //     payload_verification_handle,
+        // };
 
-        (availability_pending_block, gossip_verified_blobs)
+        // (availability_pending_block, gossip_verified_blobs)
+        todo!()
     }
 
     async fn setup_harness_and_cache<E, T>(

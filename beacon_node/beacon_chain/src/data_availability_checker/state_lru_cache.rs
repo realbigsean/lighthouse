@@ -1,9 +1,10 @@
+use crate::block_verification::PayloadVerificationHandle;
 use crate::block_verification_types::AsBlock;
 use crate::{
     block_verification_types::BlockImportData,
     data_availability_checker::{AvailabilityCheckError, STATE_LRU_CAPACITY_NON_ZERO},
     eth1_finalization_cache::Eth1FinalizationData,
-    AvailabilityPendingExecutedBlock, BeaconChainTypes, BeaconStore, PayloadVerificationOutcome,
+    BeaconChainTypes, BeaconStore, ExecutionPendingBlock,
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -16,7 +17,7 @@ use types::{BeaconState, BlindedPayload, ChainSpec, Epoch, EthSpec, Hash256, Sig
 /// This mirrors everything in the `AvailabilityPendingExecutedBlock`, except
 /// that it is much smaller because it contains only a state root instead of
 /// a full `BeaconState`.
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode)]
 pub struct DietAvailabilityPendingExecutedBlock<E: EthSpec> {
     #[ssz(with = "ssz_tagged_signed_beacon_block_arc")]
     block: Arc<SignedBeaconBlock<E>>,
@@ -26,7 +27,14 @@ pub struct DietAvailabilityPendingExecutedBlock<E: EthSpec> {
     parent_eth1_finalization_data: Eth1FinalizationData,
     confirmed_state_roots: Vec<Hash256>,
     consensus_context: ConsensusContext<E>,
-    payload_verification_outcome: PayloadVerificationOutcome,
+    #[ssz(skip_serializing, skip_deserializing)]
+    payload_verification_handle: Option<PayloadVerificationHandle<E>>,
+}
+
+impl<E: EthSpec> Clone for DietAvailabilityPendingExecutedBlock<E> {
+    fn clone(&self) -> Self {
+        todo!()
+    }
 }
 
 /// just implementing the same methods as `AvailabilityPendingExecutedBlock`
@@ -72,7 +80,7 @@ impl<T: BeaconChainTypes> StateLRUCache<T> {
     /// keep around in memory.
     pub fn register_pending_executed_block(
         &self,
-        executed_block: AvailabilityPendingExecutedBlock<T::EthSpec>,
+        executed_block: ExecutionPendingBlock<T>,
     ) -> DietAvailabilityPendingExecutedBlock<T::EthSpec> {
         let state = executed_block.import_data.state;
         let state_root = executed_block.block.state_root();
@@ -85,7 +93,7 @@ impl<T: BeaconChainTypes> StateLRUCache<T> {
             parent_eth1_finalization_data: executed_block.import_data.parent_eth1_finalization_data,
             confirmed_state_roots: executed_block.import_data.confirmed_state_roots,
             consensus_context: executed_block.import_data.consensus_context,
-            payload_verification_outcome: executed_block.payload_verification_outcome,
+            payload_verification_handle: Some(executed_block.payload_verification_handle),
         }
     }
 
@@ -96,11 +104,11 @@ impl<T: BeaconChainTypes> StateLRUCache<T> {
     pub fn recover_pending_executed_block(
         &self,
         diet_executed_block: DietAvailabilityPendingExecutedBlock<T::EthSpec>,
-    ) -> Result<AvailabilityPendingExecutedBlock<T::EthSpec>, AvailabilityCheckError> {
+    ) -> Result<ExecutionPendingBlock<T>, AvailabilityCheckError> {
         let maybe_state = self.states.write().pop(&diet_executed_block.state_root);
         if let Some(state) = maybe_state {
             let block_root = diet_executed_block.block.canonical_root();
-            Ok(AvailabilityPendingExecutedBlock {
+            Ok(ExecutionPendingBlock {
                 block: diet_executed_block.block,
                 import_data: BlockImportData {
                     block_root,
@@ -111,7 +119,9 @@ impl<T: BeaconChainTypes> StateLRUCache<T> {
                     confirmed_state_roots: diet_executed_block.confirmed_state_roots,
                     consensus_context: diet_executed_block.consensus_context,
                 },
-                payload_verification_outcome: diet_executed_block.payload_verification_outcome,
+                //TODO(sean) spawn a new handle
+                // payload_verification_handle: diet_executed_block.payload_verification_handle,
+                payload_verification_handle: todo!(),
             })
         } else {
             self.reconstruct_pending_executed_block(diet_executed_block)
@@ -124,10 +134,10 @@ impl<T: BeaconChainTypes> StateLRUCache<T> {
     pub fn reconstruct_pending_executed_block(
         &self,
         diet_executed_block: DietAvailabilityPendingExecutedBlock<T::EthSpec>,
-    ) -> Result<AvailabilityPendingExecutedBlock<T::EthSpec>, AvailabilityCheckError> {
+    ) -> Result<ExecutionPendingBlock<T>, AvailabilityCheckError> {
         let block_root = diet_executed_block.block.canonical_root();
         let state = self.reconstruct_state(&diet_executed_block)?;
-        Ok(AvailabilityPendingExecutedBlock {
+        Ok(ExecutionPendingBlock {
             block: diet_executed_block.block,
             import_data: BlockImportData {
                 block_root,
@@ -137,7 +147,9 @@ impl<T: BeaconChainTypes> StateLRUCache<T> {
                 confirmed_state_roots: diet_executed_block.confirmed_state_roots,
                 consensus_context: diet_executed_block.consensus_context,
             },
-            payload_verification_outcome: diet_executed_block.payload_verification_outcome,
+            //TODO(sean) spawn a new handle
+            // payload_verification_handle: diet_executed_block.payload_verification_handle,
+            payload_verification_handle: todo!(),
         })
     }
 
@@ -212,10 +224,10 @@ impl<T: BeaconChainTypes> StateLRUCache<T> {
 /// obtain a `DietAvailabilityPendingExecutedBlock` is to call
 /// `register_pending_executed_block` on the `StateLRUCache`.
 #[cfg(test)]
-impl<E: EthSpec> From<AvailabilityPendingExecutedBlock<E>>
-    for DietAvailabilityPendingExecutedBlock<E>
+impl<T: BeaconChainTypes> From<ExecutionPendingBlock<T>>
+    for DietAvailabilityPendingExecutedBlock<T::EthSpec>
 {
-    fn from(value: AvailabilityPendingExecutedBlock<E>) -> Self {
+    fn from(value: ExecutionPendingBlock<T>) -> Self {
         Self {
             block: value.block,
             state_root: value.import_data.state.canonical_root(),
@@ -223,7 +235,7 @@ impl<E: EthSpec> From<AvailabilityPendingExecutedBlock<E>>
             parent_eth1_finalization_data: value.import_data.parent_eth1_finalization_data,
             confirmed_state_roots: value.import_data.confirmed_state_roots,
             consensus_context: value.import_data.consensus_context,
-            payload_verification_outcome: value.payload_verification_outcome,
+            payload_verification_handle: value.payload_verification_outcome,
         }
     }
 }
