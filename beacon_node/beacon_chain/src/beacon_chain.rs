@@ -3183,17 +3183,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /* Import methods */
 
-    async fn put_execution_pending_block(
-        self: &Arc<Self>,
-        block: ExecutionPendingBlock<T>,
-    ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
-        let slot = block.block.slot();
-        let availability = self
-            .data_availability_checker
-            .put_execution_pending_block(block)?;
-        self.process_availability(slot, availability).await
-    }
-
     /// Checks if the provided blob can make any cached blocks available, and imports immediately
     /// if so, otherwise caches the blob in the data availability checker.
     async fn check_gossip_blob_availability_and_import(
@@ -3206,7 +3195,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
         let availability = self.data_availability_checker.put_gossip_blob(blob)?;
 
-        self.process_availability(slot, availability).await
+        match availability {
+            Availability::Available(block) => self.clone().into_executed_block(block).await,
+            Availability::MissingComponents(block_root) => Ok(
+                AvailabilityProcessingStatus::MissingComponents(slot, block_root),
+            ),
+        }
     }
 
     /// Checks if the provided blobs can make any cached blocks available, and imports immediately
@@ -3244,19 +3238,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .data_availability_checker
             .put_rpc_blobs(block_root, blobs)?;
 
-        self.process_availability(slot, availability).await
-    }
-
-    /// Imports a fully available block. Otherwise, returns `AvailabilityProcessingStatus::MissingComponents`
-    ///
-    /// An error is returned if the block was unable to be imported. It may be partially imported
-    /// (i.e., this function is not atomic).
-    async fn process_availability(
-        self: &Arc<Self>,
-        slot: Slot,
-        availability: Availability<T>,
-    ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
-        todo!()
+        match availability {
+            Availability::Available(block) => self.clone().into_executed_block(block).await,
+            Availability::MissingComponents(block_root) => Ok(
+                AvailabilityProcessingStatus::MissingComponents(slot, block_root),
+            ),
+        }
     }
 
     /// Accepts a fully-verified and available block and imports it into the chain without performing any

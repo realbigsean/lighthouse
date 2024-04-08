@@ -27,6 +27,7 @@ pub struct DietAvailabilityPendingExecutedBlock<E: EthSpec> {
     parent_eth1_finalization_data: Eth1FinalizationData,
     confirmed_state_roots: Vec<Hash256>,
     consensus_context: ConsensusContext<E>,
+    //TODO(sean) db migration?
     #[ssz(skip_serializing, skip_deserializing)]
     payload_verification_handle: Option<PayloadVerificationHandle<E>>,
 }
@@ -119,8 +120,6 @@ impl<T: BeaconChainTypes> StateLRUCache<T> {
                     confirmed_state_roots: diet_executed_block.confirmed_state_roots,
                     consensus_context: diet_executed_block.consensus_context,
                 },
-                //TODO(sean) spawn a new handle
-                // payload_verification_handle: diet_executed_block.payload_verification_handle,
                 payload_verification_handle: todo!(),
             })
         } else {

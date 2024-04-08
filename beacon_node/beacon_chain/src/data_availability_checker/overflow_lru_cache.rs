@@ -969,14 +969,18 @@ mod test {
             is_valid_merge_transition_block: false,
         };
 
-        // let availability_pending_block = ExecutionPendingBlock {
-        //     block,
-        //     import_data,
-        //     payload_verification_handle,
-        // };
+        let runtime = tokio::runtime::Runtime::new().unwrap();
 
-        // (availability_pending_block, gossip_verified_blobs)
-        todo!()
+        let payload_verification_handle =
+            runtime.spawn(async { Some(Ok(payload_verification_outcome)) });
+
+        let availability_pending_block = ExecutionPendingBlock {
+            block,
+            import_data,
+            payload_verification_handle,
+        };
+
+        (availability_pending_block, gossip_verified_blobs)
     }
 
     async fn setup_harness_and_cache<E, T>(
