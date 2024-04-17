@@ -17,6 +17,7 @@ use fnv::FnvHashMap;
 use lighthouse_network::rpc::methods::BlobsByRangeRequest;
 use lighthouse_network::rpc::{BlocksByRangeRequest, GoodbyeReason, RPCError};
 use lighthouse_network::{Client, NetworkGlobals, PeerAction, PeerId, ReportSource, Request};
+pub use requests::LookupVerifyError;
 use slog::{debug, trace, warn};
 use std::collections::hash_map::Entry;
 use std::sync::Arc;
@@ -51,7 +52,33 @@ pub enum RpcEvent<T> {
     RPCError(RPCError),
 }
 
-pub type RpcProcessingResult<T> = Option<Result<(T, Duration), RPCError>>;
+pub type RpcProcessingResult<T> = Option<Result<(T, Duration), LookupFailure>>;
+
+pub enum LookupFailure {
+    RpcError(RPCError),
+    LookupVerifyError(LookupVerifyError),
+}
+
+impl std::fmt::Display for LookupFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            LookupFailure::RpcError(e) => write!(f, "RPC Error: {:?}", e),
+            LookupFailure::LookupVerifyError(e) => write!(f, "Lookup Verify Error: {:?}", e),
+        }
+    }
+}
+
+impl From<RPCError> for LookupFailure {
+    fn from(e: RPCError) -> Self {
+        LookupFailure::RpcError(e)
+    }
+}
+
+impl From<LookupVerifyError> for LookupFailure {
+    fn from(e: LookupVerifyError) -> Self {
+        LookupFailure::LookupVerifyError(e)
+    }
+}
 
 /// Wraps a Network channel to employ various RPC related network functionality for the Sync manager. This includes management of a global RPC request Id.
 pub struct SyncNetworkContext<T: BeaconChainTypes> {
@@ -445,17 +472,17 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                         // TODO: We could NOT drop the request here, and penalize the peer again if
                         // sends multiple penalizable chunks after the first invalid.
                         request.remove();
-                        Err(e)
+                        Err(e.into())
                     }
                 }
             }
             RpcEvent::StreamTermination => match request.remove().terminate() {
                 Ok(_) => return None,
-                Err(e) => Err(e),
+                Err(e) => Err(e.into()),
             },
             RpcEvent::RPCError(e) => {
                 request.remove();
-                Err(e)
+                Err(e.into())
             }
         })
     }
@@ -474,11 +501,13 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                 // TODO: Should deal only with Vec<Arc<BlobSidecar>>
                 Ok(Some(blobs)) => to_fixed_blob_sidecar_list(blobs)
                     .map(|blobs| (blobs, timestamp_now()))
-                    .map_err(RPCError::InvalidData),
+                    .map_err(|_| {
+                        LookupFailure::LookupVerifyError(LookupVerifyError::UnrequestedBlobIndex(0))
+                    }),
                 Ok(None) => return None,
                 Err(e) => {
                     request.remove();
-                    Err(e)
+                    Err(e.into())
                 }
             },
             RpcEvent::StreamTermination => {
@@ -487,13 +516,17 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                     // TODO: Should deal only with Vec<Arc<BlobSidecar>>
                     Some(blobs) => to_fixed_blob_sidecar_list(blobs)
                         .map(|blobs| (blobs, timestamp_now()))
-                        .map_err(RPCError::InvalidData),
+                        .map_err(|_| {
+                            LookupFailure::LookupVerifyError(
+                                LookupVerifyError::UnrequestedBlobIndex(0),
+                            )
+                        }),
                     None => return None,
                 }
             }
             RpcEvent::RPCError(e) => {
                 request.remove();
-                Err(e)
+                Err(e.into())
             }
         })
     }
