@@ -26,7 +26,6 @@ use tokio::sync::mpsc::{self, error::TrySendError};
 use types::*;
 
 pub use sync_methods::ChainSegmentProcessId;
-use types::blob_sidecar::FixedBlobSidecarList;
 
 pub type Error<T> = TrySendError<BeaconWorkEvent<T>>;
 
@@ -426,11 +425,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     pub fn send_rpc_blobs(
         self: &Arc<Self>,
         block_root: Hash256,
-        blobs: FixedBlobSidecarList<T::EthSpec>,
+        blobs: Vec<Arc<BlobSidecar<T::EthSpec>>>,
         seen_timestamp: Duration,
         process_type: BlockProcessType,
     ) -> Result<(), Error<T::EthSpec>> {
-        let blob_count = blobs.iter().filter(|b| b.is_some()).count();
+        let blob_count = blobs.len();
         if blob_count == 0 {
             return Ok(());
         }

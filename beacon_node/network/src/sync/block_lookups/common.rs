@@ -14,8 +14,7 @@ use beacon_chain::data_availability_checker::ChildComponents;
 use beacon_chain::BeaconChainTypes;
 use std::sync::Arc;
 use std::time::Duration;
-use types::blob_sidecar::FixedBlobSidecarList;
-use types::{Hash256, SignedBeaconBlock};
+use types::{BlobSidecar, Hash256, SignedBeaconBlock};
 
 #[derive(Debug, Copy, Clone)]
 pub enum ResponseType {
@@ -266,8 +265,8 @@ impl<L: Lookup, T: BeaconChainTypes> RequestState<L, T> for BlockRequestState<L>
 
 impl<L: Lookup, T: BeaconChainTypes> RequestState<L, T> for BlobRequestState<L, T::EthSpec> {
     type RequestType = BlobsByRootSingleBlockRequest;
-    type VerifiedResponseType = FixedBlobSidecarList<T::EthSpec>;
-    type ReconstructedResponseType = FixedBlobSidecarList<T::EthSpec>;
+    type VerifiedResponseType = Vec<Arc<BlobSidecar<T::EthSpec>>>;
+    type ReconstructedResponseType = Vec<Arc<BlobSidecar<T::EthSpec>>>;
 
     fn new_request(&self) -> Self::RequestType {
         BlobsByRootSingleBlockRequest {
@@ -286,25 +285,24 @@ impl<L: Lookup, T: BeaconChainTypes> RequestState<L, T> for BlobRequestState<L, 
             .map_err(LookupRequestError::SendFailed)
     }
 
-    fn get_parent_root(verified_response: &FixedBlobSidecarList<T::EthSpec>) -> Option<Hash256> {
+    fn get_parent_root(verified_response: &Vec<Arc<BlobSidecar<T::EthSpec>>>) -> Option<Hash256> {
         verified_response
             .into_iter()
-            .filter_map(|blob| blob.as_ref())
             .map(|blob| blob.block_parent_root())
             .next()
     }
 
     fn add_to_child_components(
-        verified_response: FixedBlobSidecarList<T::EthSpec>,
+        verified_response: Vec<Arc<BlobSidecar<T::EthSpec>>>,
         components: &mut ChildComponents<T::EthSpec>,
     ) {
-        components.merge_blobs(verified_response);
+        components.merge_blobs(verified_response).unwrap();
     }
 
     fn verified_to_reconstructed(
         _block_root: Hash256,
-        blobs: FixedBlobSidecarList<T::EthSpec>,
-    ) -> FixedBlobSidecarList<T::EthSpec> {
+        blobs: Vec<Arc<BlobSidecar<T::EthSpec>>>,
+    ) -> Vec<Arc<BlobSidecar<T::EthSpec>>> {
         blobs
     }
 
@@ -312,7 +310,7 @@ impl<L: Lookup, T: BeaconChainTypes> RequestState<L, T> for BlobRequestState<L, 
         id: Id,
         bl: &BlockLookups<T>,
         block_root: Hash256,
-        verified: FixedBlobSidecarList<T::EthSpec>,
+        verified: Vec<Arc<BlobSidecar<T::EthSpec>>>,
         duration: Duration,
         cx: &SyncNetworkContext<T>,
     ) -> Result<(), LookupRequestError> {

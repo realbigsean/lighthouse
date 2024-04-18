@@ -14,16 +14,6 @@ pub struct ChildComponents<E: EthSpec> {
     pub downloaded_blobs: FixedBlobSidecarList<E>,
 }
 
-impl<E: EthSpec> From<RpcBlock<E>> for ChildComponents<E> {
-    fn from(value: RpcBlock<E>) -> Self {
-        let (block_root, block, blobs) = value.deconstruct();
-        let fixed_blobs = blobs.map(|blobs| {
-            FixedBlobSidecarList::from(blobs.into_iter().map(Some).collect::<Vec<_>>())
-        });
-        Self::new(block_root, Some(block), fixed_blobs)
-    }
-}
-
 impl<E: EthSpec> ChildComponents<E> {
     pub fn empty(block_root: Hash256) -> Self {
         Self {
@@ -32,34 +22,56 @@ impl<E: EthSpec> ChildComponents<E> {
             downloaded_blobs: <_>::default(),
         }
     }
+
     pub fn new(
         block_root: Hash256,
         block: Option<Arc<SignedBeaconBlock<E>>>,
-        blobs: Option<FixedBlobSidecarList<E>>,
-    ) -> Self {
+        blobs: Option<Vec<Arc<BlobSidecar<E>>>>,
+    ) -> Result<Self, String> {
         let mut cache = Self::empty(block_root);
         if let Some(block) = block {
             cache.merge_block(block);
         }
         if let Some(blobs) = blobs {
-            cache.merge_blobs(blobs);
+            cache.merge_blobs(blobs)?;
         }
-        cache
+        Ok(cache)
+    }
+
+    pub fn new_from_rpc_block(value: RpcBlock<E>) -> Result<Self, String> {
+        let (block_root, block, blobs) = value.deconstruct();
+        // Safe to unwrap because we are constructing the struct from a valid RpcBlock
+        Self::new(block_root, Some(block), blobs.map(Into::into))
     }
 
     pub fn merge_block(&mut self, block: Arc<SignedBeaconBlock<E>>) {
         self.downloaded_block = Some(block);
     }
 
-    pub fn merge_blob(&mut self, blob: Arc<BlobSidecar<E>>) {
+    pub fn merge_blob(&mut self, blob: Arc<BlobSidecar<E>>) -> Result<(), String> {
+        if blob.index >= E::max_blobs_per_block() as u64 {
+            return Err(format!("Blob index {} is out of range", blob.index));
+        }
+        self.merge_blob_unchecked(blob);
+        Ok(())
+    }
+
+    pub fn merge_blobs(&mut self, blobs: Vec<Arc<BlobSidecar<E>>>) -> Result<(), String> {
+        for blob in blobs.into_iter() {
+            self.merge_blob(blob)?;
+        }
+        Ok(())
+    }
+
+    pub fn merge_blob_unchecked(&mut self, blob: Arc<BlobSidecar<E>>) {
         if let Some(blob_ref) = self.downloaded_blobs.get_mut(blob.index as usize) {
             *blob_ref = Some(blob);
         }
     }
 
-    pub fn merge_blobs(&mut self, blobs: FixedBlobSidecarList<E>) {
-        for blob in blobs.iter().flatten() {
-            self.merge_blob(blob.clone());
+    pub fn merge_blobs_unchecked(&mut self, blobs: Vec<Arc<BlobSidecar<E>>>) {
+        for blob in blobs.into_iter() {
+            self.merge_blob_unchecked(blob);
         }
     }
 

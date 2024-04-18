@@ -121,7 +121,6 @@ use store::{
 use task_executor::{ShutdownReason, TaskExecutor};
 use tokio_stream::Stream;
 use tree_hash::TreeHash;
-use types::blob_sidecar::FixedBlobSidecarList;
 use types::payload::BlockProductionVersion;
 use types::*;
 
@@ -2913,7 +2912,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         self: &Arc<Self>,
         slot: Slot,
         block_root: Hash256,
-        blobs: FixedBlobSidecarList<T::EthSpec>,
+        blobs: Vec<Arc<BlobSidecar<T::EthSpec>>>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
         // If this block has already been imported to forkchoice it must have been available, so
         // we don't need to process its blobs again.
@@ -2927,7 +2926,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         if let Some(event_handler) = self.event_handler.as_ref() {
             if event_handler.has_blob_sidecar_subscribers() {
-                for blob in blobs.iter().filter_map(|maybe_blob| maybe_blob.as_ref()) {
+                for blob in blobs.iter() {
                     event_handler.register(EventKind::BlobSidecar(
                         SseBlobSidecar::from_blob_sidecar(blob),
                     ));
@@ -3185,17 +3184,13 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         self: &Arc<Self>,
         slot: Slot,
         block_root: Hash256,
-        blobs: FixedBlobSidecarList<T::EthSpec>,
+        blobs: Vec<Arc<BlobSidecar<T::EthSpec>>>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
         // Need to scope this to ensure the lock is dropped before calling `process_availability`
         // Even an explicit drop is not enough to convince the borrow checker.
         {
             let mut slashable_cache = self.observed_slashable.write();
-            for header in blobs
-                .into_iter()
-                .filter_map(|b| b.as_ref().map(|b| b.signed_block_header.clone()))
-                .unique()
-            {
+            for header in blobs.iter().map(|b| b.signed_block_header.clone()).unique() {
                 if verify_header_signature::<T, BlockError<T::EthSpec>>(self, &header).is_ok() {
                     slashable_cache
                         .observe_slashable(

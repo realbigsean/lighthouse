@@ -23,8 +23,7 @@ use std::time::Duration;
 use store::KzgCommitment;
 use tokio::sync::mpsc;
 use types::beacon_block_body::format_kzg_commitments;
-use types::blob_sidecar::FixedBlobSidecarList;
-use types::{Epoch, Hash256};
+use types::{BlobSidecar, Epoch, Hash256};
 
 /// Id associated to a batch processing request, either a sync batch or a parent lookup.
 #[derive(Clone, Debug, PartialEq)]
@@ -201,7 +200,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     pub fn generate_rpc_blobs_process_fn(
         self: Arc<Self>,
         block_root: Hash256,
-        blobs: FixedBlobSidecarList<T::EthSpec>,
+        blobs: Vec<Arc<BlobSidecar<T::EthSpec>>>,
         seen_timestamp: Duration,
         process_type: BlockProcessType,
     ) -> AsyncFn {
@@ -217,24 +216,17 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     pub async fn process_rpc_blobs(
         self: Arc<NetworkBeaconProcessor<T>>,
         block_root: Hash256,
-        blobs: FixedBlobSidecarList<T::EthSpec>,
+        blobs: Vec<Arc<BlobSidecar<T::EthSpec>>>,
         seen_timestamp: Duration,
         process_type: BlockProcessType,
     ) {
-        let Some(slot) = blobs
-            .iter()
-            .find_map(|blob| blob.as_ref().map(|blob| blob.slot()))
-        else {
+        let Some(slot) = blobs.iter().map(|blob| blob.slot()).next() else {
             return;
         };
 
         let (indices, commitments): (Vec<u64>, Vec<KzgCommitment>) = blobs
             .iter()
-            .filter_map(|blob_opt| {
-                blob_opt
-                    .as_ref()
-                    .map(|blob| (blob.index, blob.kzg_commitment))
-            })
+            .map(|blob| (blob.index, blob.kzg_commitment))
             .unzip();
         let commitments = format_kzg_commitments(&commitments);
 

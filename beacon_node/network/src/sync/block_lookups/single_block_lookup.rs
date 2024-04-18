@@ -167,7 +167,9 @@ impl<L: Lookup, T: BeaconChainTypes> SingleBlockLookup<L, T> {
             if let Some(block) = downloaded_block {
                 existing_components.merge_block(block);
             }
-            existing_components.merge_blobs(downloaded_blobs);
+            let downloaded_blobs = downloaded_blobs.into_iter().cloned().flatten().collect();
+
+            existing_components.merge_blobs_unchecked(downloaded_blobs);
         } else {
             self.child_components = Some(components);
         }

@@ -57,12 +57,10 @@ use lighthouse_network::types::{NetworkGlobals, SyncState};
 use lighthouse_network::SyncInfo;
 use lighthouse_network::{PeerAction, PeerId};
 use slog::{crit, debug, error, info, trace, warn, Logger};
-use std::ops::IndexMut;
 use std::ops::Sub;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use types::blob_sidecar::FixedBlobSidecarList;
 use types::{BlobSidecar, EthSpec, Hash256, SignedBeaconBlock, Slot};
 
 /// The number of slots ahead of us that is allowed before requesting a long-range (batch)  Sync
@@ -574,32 +572,42 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                 let block_slot = block.slot();
                 let parent_root = block.parent_root();
                 debug!(self.log, "Received unknown parent block message"; "block_root" => %block_root, "parent_root" => %parent_root);
-                self.handle_unknown_parent(
-                    peer_id,
-                    block_root,
-                    parent_root,
-                    block_slot,
-                    block.into(),
-                );
+                match ChildComponents::new_from_rpc_block(block) {
+                    Ok(child) => self.handle_unknown_parent(
+                        peer_id,
+                        block_root,
+                        parent_root,
+                        block_slot,
+                        child,
+                    ),
+                    Err(e) => {
+                        warn!(self.log, "Peer sent invalid block"; "msg" => e, "peer_id" => %peer_id);
+                        return;
+                    }
+                }
             }
             SyncMessage::UnknownParentBlob(peer_id, blob) => {
                 let blob_slot = blob.slot();
                 let block_root = blob.block_root();
                 let parent_root = blob.block_parent_root();
-                let blob_index = blob.index;
-                if blob_index >= T::EthSpec::max_blobs_per_block() as u64 {
-                    warn!(self.log, "Peer sent blob with invalid index"; "index" => blob_index, "peer_id" => %peer_id);
-                    return;
-                }
-                let mut blobs = FixedBlobSidecarList::default();
-                *blobs.index_mut(blob_index as usize) = Some(blob);
+                let child_components = match ChildComponents::new(
+                    block_root,
+                    None,
+                    Some(vec![blob]),
+                ) {
+                    Err(e) => {
+                        warn!(self.log, "Peer sent invalid blob"; "msg" => e, "peer_id" => %peer_id);
+                        return;
+                    }
+                    Ok(child_components) => child_components,
+                };
                 debug!(self.log, "Received unknown parent blob message"; "block_root" => %block_root, "parent_root" => %parent_root);
                 self.handle_unknown_parent(
                     peer_id,
                     block_root,
                     parent_root,
                     blob_slot,
-                    ChildComponents::new(block_root, None, Some(blobs)),
+                    child_components,
                 );
             }
             SyncMessage::UnknownBlockHashFromAttestation(peer_id, block_root) => {

@@ -15,7 +15,7 @@ use std::fmt::Debug;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use task_executor::TaskExecutor;
-use types::blob_sidecar::{BlobIdentifier, BlobSidecar, FixedBlobSidecarList};
+use types::blob_sidecar::{BlobIdentifier, BlobSidecar};
 use types::{BlobSidecarList, ChainSpec, Epoch, EthSpec, Hash256, SignedBeaconBlock};
 
 mod child_components;
@@ -170,13 +170,13 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
     pub fn put_rpc_blobs(
         &self,
         block_root: Hash256,
-        blobs: FixedBlobSidecarList<T::EthSpec>,
+        blobs: Vec<Arc<BlobSidecar<T::EthSpec>>>,
     ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
         let Some(kzg) = self.kzg.as_ref() else {
             return Err(AvailabilityCheckError::KzgNotInitialized);
         };
 
-        let verified_blobs = KzgVerifiedBlobList::new(Vec::from(blobs).into_iter().flatten(), kzg)
+        let verified_blobs = KzgVerifiedBlobList::new(blobs.into_iter(), kzg)
             .map_err(AvailabilityCheckError::Kzg)?;
 
         self.availability_cache

@@ -30,8 +30,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 use store::Hash256;
-use types::blob_sidecar::FixedBlobSidecarList;
-use types::Slot;
+use types::{BlobSidecar, Slot};
 
 pub mod common;
 mod parent_lookup;
@@ -807,8 +806,17 @@ impl<T: BeaconChainTypes> BlockLookups<T> {
                     BlockError::ParentUnknown(block) => {
                         let slot = block.slot();
                         let parent_root = block.parent_root();
-                        lookup.add_child_components(block.into());
-                        Action::ParentUnknown { parent_root, slot }
+
+                        match ChildComponents::new_from_rpc_block(block) {
+                            Ok(child) => {
+                                lookup.add_child_components(child);
+                                Action::ParentUnknown { parent_root, slot }
+                            }
+                            Err(e) => {
+                                warn!(self.log, "Dropping parent lookup for invalid block"; "block_root" => %root, "error" => ?e);
+                                Action::Drop
+                            }
+                        }
                     }
                     ref e @ BlockError::ExecutionPayloadError(ref epe) if !epe.penalize_peer() => {
                         // These errors indicate that the execution layer is offline
@@ -1258,7 +1266,7 @@ impl<T: BeaconChainTypes> BlockLookups<T> {
     fn send_blobs_for_processing(
         &self,
         block_root: Hash256,
-        blobs: FixedBlobSidecarList<T::EthSpec>,
+        blobs: Vec<Arc<BlobSidecar<T::EthSpec>>>,
         duration: Duration,
         process_type: BlockProcessType,
         cx: &SyncNetworkContext<T>,

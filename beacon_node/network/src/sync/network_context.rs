@@ -23,7 +23,6 @@ use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use types::blob_sidecar::FixedBlobSidecarList;
 use types::{BlobSidecar, EthSpec, SignedBeaconBlock};
 
 mod requests;
@@ -491,19 +490,14 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         &mut self,
         request_id: SingleLookupReqId,
         blob: RpcEvent<Arc<BlobSidecar<T::EthSpec>>>,
-    ) -> RpcProcessingResult<FixedBlobSidecarList<T::EthSpec>> {
+    ) -> RpcProcessingResult<Vec<Arc<BlobSidecar<T::EthSpec>>>> {
         let Entry::Occupied(mut request) = self.blobs_by_root_requests.entry(request_id) else {
             return None;
         };
 
         Some(match blob {
             RpcEvent::Response(blob, _) => match request.get_mut().add_response(blob) {
-                // TODO: Should deal only with Vec<Arc<BlobSidecar>>
-                Ok(Some(blobs)) => to_fixed_blob_sidecar_list(blobs)
-                    .map(|blobs| (blobs, timestamp_now()))
-                    .map_err(|_| {
-                        LookupFailure::LookupVerifyError(LookupVerifyError::UnrequestedBlobIndex(0))
-                    }),
+                Ok(Some(blobs)) => Ok((blobs, timestamp_now())),
                 Ok(None) => return None,
                 Err(e) => {
                     request.remove();
@@ -513,14 +507,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             RpcEvent::StreamTermination => {
                 // Stream terminator
                 match request.remove().terminate() {
-                    // TODO: Should deal only with Vec<Arc<BlobSidecar>>
-                    Some(blobs) => to_fixed_blob_sidecar_list(blobs)
-                        .map(|blobs| (blobs, timestamp_now()))
-                        .map_err(|_| {
-                            LookupFailure::LookupVerifyError(
-                                LookupVerifyError::UnrequestedBlobIndex(0),
-                            )
-                        }),
+                    Some(blobs) => Ok((blobs, timestamp_now())),
                     None => return None,
                 }
             }
@@ -530,17 +517,4 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             }
         })
     }
-}
-
-fn to_fixed_blob_sidecar_list<E: EthSpec>(
-    blobs: Vec<Arc<BlobSidecar<E>>>,
-) -> Result<FixedBlobSidecarList<E>, String> {
-    let mut fixed_list = FixedBlobSidecarList::default();
-    for blob in blobs.into_iter() {
-        let index = blob.index as usize;
-        *fixed_list
-            .get_mut(index)
-            .ok_or("invalid index".to_string())? = Some(blob)
-    }
-    Ok(fixed_list)
 }
