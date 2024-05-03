@@ -1,5 +1,5 @@
 use crate::{
-    test_utils::TestRandom, Address, BeaconState, ChainSpec, Epoch, EthSpec, Hash256,
+    test_utils::TestRandom, Address, BeaconState, ChainSpec, Epoch, EthSpec, ForkName, Hash256,
     PublicKeyBytes,
 };
 use serde::{Deserialize, Serialize};
@@ -57,8 +57,31 @@ impl Validator {
 
     /// Returns `true` if the validator is eligible to join the activation queue.
     ///
+    /// Calls the correct function depending on the provided `fork_name`.
+    pub fn is_eligible_for_activation_queue(
+        &self,
+        spec: &ChainSpec,
+        current_fork: ForkName,
+    ) -> bool {
+        if current_fork >= ForkName::Electra {
+            self.is_eligible_for_activation_queue_electra(spec)
+        } else {
+            self.is_eligible_for_activation_queue_base(spec)
+        }
+    }
+
+    /// Returns `true` if the validator is eligible to join the activation queue.
+    ///
     /// Modified in electra
     pub fn is_eligible_for_activation_queue(&self, spec: &ChainSpec) -> bool {
+        self.activation_eligibility_epoch == spec.far_future_epoch
+            && self.effective_balance >= spec.min_activation_balance
+    }
+
+    /// Returns `true` if the validator is eligible to join the activation queue.
+    ///
+    /// Modified in electra as part of EIP 7251.
+    fn is_eligible_for_activation_queue_electra(&self, spec: &ChainSpec) -> bool {
         self.activation_eligibility_epoch == spec.far_future_epoch
             && self.effective_balance >= spec.min_activation_balance
     }
@@ -138,10 +161,71 @@ impl Validator {
             && balance > 0
     }
 
+    /// Returns `true` if the validator is fully withdrawable at some epoch.
+    ///
+    /// Modified in electra as part of EIP 7251.
+    fn is_fully_withdrawable_at_electra(
+        &self,
+        balance: u64,
+        epoch: Epoch,
+        spec: &ChainSpec,
+    ) -> bool {
+        self.has_execution_withdrawal_credential(spec)
+            && self.withdrawable_epoch <= epoch
+            && balance > 0
+    }
+
+    /// Returns `true` if the validator is partially withdrawable.
+    ///
+    /// Calls the correct function depending on the provided `fork_name`.
+    pub fn is_partially_withdrawable_validator(
+        &self,
+        balance: u64,
+        spec: &ChainSpec,
+        current_fork: ForkName,
+    ) -> bool {
+        if current_fork >= ForkName::Electra {
+            self.is_partially_withdrawable_validator_electra(balance, spec)
+        } else {
+            self.is_partially_withdrawable_validator_capella(balance, spec)
+        }
+    }
+
     /// Returns `true` if the validator is partially withdrawable.
     ///
     /// Note: Modified in electra.
     pub fn is_partially_withdrawable_validator(&self, balance: u64, spec: &ChainSpec) -> bool {
+        let max_effective_balance = self.get_validator_max_effective_balance(spec);
+        let has_max_effective_balance = self.effective_balance == max_effective_balance;
+        let has_excess_balance = balance > max_effective_balance;
+        self.has_execution_withdrawal_credential(spec)
+            && has_max_effective_balance
+            && has_excess_balance
+    }
+
+    /// Returns `true` if the validator has a 0x01 or 0x02 prefixed withdrawal credential.
+    pub fn has_execution_withdrawal_credential(&self, spec: &ChainSpec) -> bool {
+        self.has_compounding_withdrawal_credential(spec)
+            || self.has_eth1_withdrawal_credential(spec)
+    }
+
+    /// Returns the max effective balance for a validator in gwei.
+    pub fn get_validator_max_effective_balance(&self, spec: &ChainSpec) -> u64 {
+        if self.has_compounding_withdrawal_credential(spec) {
+            spec.max_effective_balance_electra
+        } else {
+            spec.min_activation_balance
+        }
+    }
+
+    /// Returns `true` if the validator is partially withdrawable.
+    ///
+    /// Modified in electra as part of EIP 7251.
+    pub fn is_partially_withdrawable_validator_electra(
+        &self,
+        balance: u64,
+        spec: &ChainSpec,
+    ) -> bool {
         let max_effective_balance = self.get_validator_max_effective_balance(spec);
         let has_max_effective_balance = self.effective_balance == max_effective_balance;
         let has_excess_balance = balance > max_effective_balance;
