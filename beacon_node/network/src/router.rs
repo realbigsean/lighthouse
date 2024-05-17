@@ -21,7 +21,7 @@ use lighthouse_network::{
     MessageId, NetworkGlobals, PeerId, PeerRequestId, PubsubMessage, Request, Response,
 };
 use logging::TimeLatch;
-use slog::{crit, debug, o, trace};
+use slog::{crit, debug, info, o, trace};
 use slog::{error, warn};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -286,17 +286,22 @@ impl<T: BeaconChainTypes> Router<T> {
                         timestamp_now(),
                     ),
                 ),
-            PubsubMessage::Attestation(subnet_attestation) => self
-                .handle_beacon_processor_send_result(
+            PubsubMessage::Attestation(att) => {
+                let (subnet_id, attestation) = *att;
+                let committee_index = attestation.committee_index();
+                let attesting_indices = attestation.num_set_aggregation_bits();
+                info!(self.log, "Received unaggregated attestation"; "subnet_id" => ?subnet_id, "committee_index" => committee_index, "attesting_indices" => attesting_indices);
+                self.handle_beacon_processor_send_result(
                     self.network_beacon_processor.send_unaggregated_attestation(
                         message_id,
                         peer_id,
-                        subnet_attestation.1,
-                        subnet_attestation.0,
+                        attestation,
+                        subnet_id,
                         should_process,
                         timestamp_now(),
                     ),
-                ),
+                )
+            }
             PubsubMessage::BeaconBlock(block) => self.handle_beacon_processor_send_result(
                 self.network_beacon_processor.send_gossip_beacon_block(
                     message_id,

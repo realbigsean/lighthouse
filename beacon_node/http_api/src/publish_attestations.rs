@@ -43,7 +43,7 @@ use beacon_processor::work_reprocessing_queue::{QueuedUnaggregate, ReprocessQueu
 use eth2::types::Failure;
 use lighthouse_network::PubsubMessage;
 use network::NetworkMessage;
-use slog::{debug, error, warn, Logger};
+use slog::{debug, error, info, warn, Logger};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{
@@ -82,6 +82,10 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
         .verify_unaggregated_attestation_for_gossip(attestation, None)
         .map_err(Error::Validation)?;
 
+    let subnet_id = attestation.subnet_id();
+    let committee_index = attestation.attestation().committee_index();
+    let attesting_indices = attestation.attestation().num_set_aggregation_bits();
+    info!(log, "Publishing unaggregated attestation"; "subnet_id" => ?subnet_id, "committee_index" => committee_index, "attesting_indices" => attesting_indices);
     // Publish.
     network_tx
         .send(NetworkMessage::Publish {
