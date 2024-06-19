@@ -153,6 +153,26 @@ impl SigningMethod {
             genesis_validators_root,
         });
 
+        if let SignableMessage::SignedAggregateAndProof(a) = signable_message {
+            match a {
+                AggregateAndProofRef::Base(b) => {
+                    let root = b.signing_root(domain_hash);
+
+                    return self
+                        .get_signature_from_root(
+                            signable_message,
+                            signing_root,
+                            executor,
+                            fork_info,
+                        )
+                        .await;
+                }
+                AggregateAndProofRef::Electra(_) => {
+                    panic!()
+                }
+            }
+        };
+
         self.get_signature_from_root(signable_message, signing_root, executor, fork_info)
             .await
     }

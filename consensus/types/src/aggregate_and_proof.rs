@@ -147,4 +147,5 @@ impl<E: EthSpec> AggregateAndProof<E> {
 }
 
 impl<E: EthSpec> SignedRoot for AggregateAndProof<E> {}
+impl<E: EthSpec> SignedRoot for AggregateAndProofBase<E> {}
 impl<'a, E: EthSpec> SignedRoot for AggregateAndProofRef<'a, E> {}
