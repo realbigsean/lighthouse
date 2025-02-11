@@ -6961,13 +6961,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// account the current slot when accounting for skips.
     pub fn is_healthy(&self, parent_root: &Hash256) -> Result<ChainHealth, Error> {
         let cached_head = self.canonical_head.cached_head();
-        if let Some(head_hash) = cached_head.forkchoice_update_parameters().head_hash {
-            if ExecutionBlockHash::zero() == head_hash {
-                return Ok(ChainHealth::PreMerge);
-            }
-        } else {
-            return Ok(ChainHealth::PreMerge);
-        };
 
         // Check that the parent is NOT optimistic.
         if let Some(execution_status) = self

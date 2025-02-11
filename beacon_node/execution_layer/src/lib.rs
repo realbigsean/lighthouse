@@ -400,7 +400,6 @@ pub enum ChainHealth {
     Healthy,
     Unhealthy(FailedCondition),
     Optimistic,
-    PreMerge,
 }
 
 #[derive(Debug, PartialEq)]
@@ -1047,8 +1046,6 @@ impl<E: EthSpec> ExecutionLayer<E> {
                         can adjust the expected health conditions.",
                     "failed_condition" => ?condition
                 ),
-                // Intentional no-op, so we never attempt builder API proposals pre-merge.
-                ChainHealth::PreMerge => (),
                 ChainHealth::Optimistic => info!(
                     self.log(),
                     "Chain is optimistic; can't build payload";
