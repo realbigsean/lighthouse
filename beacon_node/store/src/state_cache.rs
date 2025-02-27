@@ -1,5 +1,6 @@
 use crate::Error;
 use lru::LruCache;
+use slog::{info, Logger};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::num::NonZeroUsize;
 use types::{BeaconState, ChainSpec, Epoch, EthSpec, Hash256, Slot};
@@ -36,6 +37,7 @@ pub struct StateCache<E: EthSpec> {
     states: LruCache<Hash256, BeaconState<E>>,
     block_map: BlockMap,
     max_epoch: Epoch,
+    log: Logger,
 }
 
 #[derive(Debug)]
@@ -47,12 +49,13 @@ pub enum PutStateOutcome {
 
 #[allow(clippy::len_without_is_empty)]
 impl<E: EthSpec> StateCache<E> {
-    pub fn new(capacity: NonZeroUsize) -> Self {
+    pub fn new(log: Logger, capacity: NonZeroUsize) -> Self {
         StateCache {
             finalized_state: None,
             states: LruCache::new(capacity),
             block_map: BlockMap::default(),
             max_epoch: Epoch::new(0),
+            log,
         }
     }
 
@@ -122,21 +125,25 @@ impl<E: EthSpec> StateCache<E> {
         block_root: Hash256,
         state: &BeaconState<E>,
     ) -> Result<PutStateOutcome, Error> {
+        info!(self.log, "Put state"; "state_root" => ?state_root, "block_root" => ?block_root, "len" => self.len(), "capacity" => self.capacity());
         if self
             .finalized_state
             .as_ref()
             .is_some_and(|finalized_state| finalized_state.state_root == state_root)
         {
+            info!(self.log, "Put state failed"; "state_root" => ?state_root, "block_root" => ?block_root);
             return Ok(PutStateOutcome::Finalized);
         }
 
         if self.states.peek(&state_root).is_some() {
+            info!(self.log, "Put state duplicated"; "state_root" => ?state_root, "block_root" => ?block_root);
             return Ok(PutStateOutcome::Duplicate);
         }
 
         // Refuse states with pending mutations: we want cached states to be as small as possible
         // i.e. stored entirely as a binary merkle tree with no updates overlaid.
         if state.has_pending_mutations() {
+            info!(self.log, "Pending mutations"; "state_root" => ?state_root, "block_root" => ?block_root);
             return Err(Error::StateForCacheHasPendingUpdates {
                 state_root,
                 slot: state.slot(),
@@ -148,9 +155,11 @@ impl<E: EthSpec> StateCache<E> {
 
         // If the cache is full, use the custom cull routine to make room.
         if let Some(over_capacity) = self.len().checked_sub(self.capacity()) {
+            info!(self.log, "Culling states"; "state_root" => ?state_root, "block_root" => ?block_root, "len" => self.len(), "capacity" => self.capacity());
             self.cull(over_capacity + 1);
         }
 
+        info!(self.log, "Inserting state"; "state_root" => ?state_root, "block_root" => ?block_root, "len" => self.len(), "capacity" => self.capacity());
         // Insert the full state into the cache.
         self.states.put(state_root, state.clone());
 

@@ -218,7 +218,7 @@ impl<E: EthSpec> HotColdDB<E, MemoryStore<E>, MemoryStore<E>> {
             blobs_db: MemoryStore::open(),
             hot_db: MemoryStore::open(),
             block_cache: Mutex::new(BlockCache::new(config.block_cache_size)),
-            state_cache: Mutex::new(StateCache::new(config.state_cache_size)),
+            state_cache: Mutex::new(StateCache::new(log.clone(), config.state_cache_size)),
             historic_state_cache: Mutex::new(HistoricStateCache::new(
                 config.hdiff_buffer_cache_size,
                 config.historic_state_cache_size,
@@ -264,7 +264,7 @@ impl<E: EthSpec> HotColdDB<E, BeaconNodeBackend<E>, BeaconNodeBackend<E>> {
             cold_db: BeaconNodeBackend::open(&config, cold_path)?,
             hot_db,
             block_cache: Mutex::new(BlockCache::new(config.block_cache_size)),
-            state_cache: Mutex::new(StateCache::new(config.state_cache_size)),
+            state_cache: Mutex::new(StateCache::new(log.clone(), config.state_cache_size)),
             historic_state_cache: Mutex::new(HistoricStateCache::new(
                 config.hdiff_buffer_cache_size,
                 config.historic_state_cache_size,
